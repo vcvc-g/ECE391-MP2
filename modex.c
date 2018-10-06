@@ -81,6 +81,7 @@
 #define NUM_CRTC_REGS           25
 #define NUM_GRAPHICS_REGS        9
 #define NUM_ATTR_REGS           22
+#define STATUS_BAR_SIZE       1440
 
 /* VGA register settings for mode X */
 static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
@@ -88,16 +89,16 @@ static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
 };
 static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = {
     0x5F00, 0x4F01, 0x5002, 0x8203, 0x5404, 0x8005, 0xBF06, 0x1F07,
-    0x0008, 0x4109, 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
+    0x0008, 0x0109, 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
     0x9C10, 0x8E11, 0x8F12, 0x2813, 0x0014, 0x9615, 0xB916, 0xE317,
-    0xFF18
+    0x6C18
 };
 static unsigned char mode_X_attr[NUM_ATTR_REGS * 2] = {
     0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03,
     0x04, 0x04, 0x05, 0x05, 0x06, 0x06, 0x07, 0x07,
     0x08, 0x08, 0x09, 0x09, 0x0A, 0x0A, 0x0B, 0x0B,
     0x0C, 0x0C, 0x0D, 0x0D, 0x0E, 0x0E, 0x0F, 0x0F,
-    0x10, 0x41, 0x11, 0x00, 0x12, 0x0F, 0x13, 0x00,
+    0x10, 0x61, 0x11, 0x00, 0x12, 0x0F, 0x13, 0x00,
     0x14, 0x00, 0x15, 0x00
 };
 static unsigned short mode_X_graphics[NUM_GRAPHICS_REGS] = {
@@ -141,6 +142,7 @@ static void fill_palette_text();
 static void write_font_data();
 static void set_text_mode_3(int clear_scr);
 static void copy_image(unsigned char* img, unsigned short scr_addr);
+static void copy_status(unsigned char* img, unsigned short scr_addr);
 
 
 /*
@@ -314,7 +316,7 @@ int set_mode_X(void(*horiz_fill_fn)(int, int, unsigned char[SCROLL_X_DIM]),
     }
 
     /* One display page goes at the start of video memory. */
-    target_img = 0x0000;
+    target_img = 0x05A0;
 
     /* Map video memory and obtain permission for VGA port access. */
     if (open_memory_and_ports() == -1)
@@ -536,6 +538,32 @@ void show_screen() {
 }
 
 
+  void show_statusbar() {
+    unsigned char status_buf[STATUS_BAR_SIZE * 4];    /* create status bar pic*/
+    int i;                  /* loop index over status buffer*/
+    int j;                  /* loop index over video plane*/
+    unsigned short target_stat = 0x0000;  /* target buffer for status bar*/
+
+    /* fill in  status bar color */
+    for (i = 0; i < STATUS_BAR_SIZE*4; i++){
+          status_buf[i] = 0x2D;
+    }
+
+    /* copy status bar to video mem */
+    for (j = 0; j < 4; j++) {
+      SET_WRITE_MASK(1 << (j + 8));
+      copy_status(status_buf + j*STATUS_BAR_SIZE, target_stat);
+    }
+
+    /*
+     * Change the VGA registers to point the top left of the screen
+     * to the video memory that we just filled.
+     */
+    OUTW(0x03D4, (target_img & 0xFF00) | 0x0C);
+    OUTW(0x03D4, ((target_img & 0x00FF) << 8) | 0x0D);
+}
+
+
 /*
  * clear_screens
  *     DESCRIPTION: Fills the video memory with zeroes.
@@ -578,6 +606,34 @@ void clear_screens() {
  */
 int draw_vert_line(int x) {
     /* to be written... */
+    unsigned char buf[SCROLL_Y_DIM]; /* buffer for graphical image of line                            */
+    unsigned char* addr;             /* address of first pixel in build buffer (without plane offset) */
+    int p_off;                       /* offset of plane of first pixel                                */
+    int i;                           /* loop index over pixels                                        */
+
+    /* Check whether requested line falls in the logical view window. */
+    if (x < 0 || x >= SCROLL_X_DIM)
+    return -1;
+
+    /* Adjust y to the logical row value. */
+    x += show_x;
+
+    /* Get the image of the line. */
+    (*vert_line_fn)(x, show_y, buf);
+
+    /* Calculate starting address in build buffer. */
+    addr = img3 + (x >> 2) + show_y * SCROLL_X_WIDTH;
+
+    /* Calculate plane offset of first pixel. */
+    p_off = (3 - (x & 3));
+
+    /* Copy image data into appropriate planes in build buffer. */
+    for (i = 0; i < SCROLL_Y_DIM; i++) {
+        addr[p_off * SCROLL_SIZE] = buf[i];
+        addr += SCROLL_X_WIDTH;
+    }
+
+
     return 0;
 }
 
@@ -972,6 +1028,33 @@ static void copy_image(unsigned char* img, unsigned short scr_addr) {
     asm volatile("                                                  \n\
         cld                                                         \n\
         movl $16000, %%ecx                                          \n\
+        rep movsb        /* copy ECX bytes from M[ESI] to M[EDI] */ \n\
+        "
+        : /* no outputs */
+        : "S"(img), "D"(mem_image + scr_addr)
+        : "eax", "ecx", "memory"
+    );
+}
+
+
+/*
+ * copy_status
+ *     DESCRIPTION: Copy one plane of a screen from the build buffer to the video memory.
+ *     INPUTS: img -- a pointer to a single screen plane in the build buffer
+ *             scr_addr -- the destination offset in video memory
+ *     OUTPUTS: none
+ *     RETURN VALUE: none
+ *     SIDE EFFECTS: copies a plane from the build buffer to video memory
+ */
+static void copy_status(unsigned char* img, unsigned short scr_addr) {
+    /*
+     * memcpy is actually probably good enough here, and is usually
+     * implemented using ISA-specific features like those below,
+     * but the code here provides an example of x86 string moves
+     */
+    asm volatile("                                                  \n\
+        cld                                                         \n\
+        movl $1440, %%ecx                                          \n\
         rep movsb        /* copy ECX bytes from M[ESI] to M[EDI] */ \n\
         "
         : /* no outputs */

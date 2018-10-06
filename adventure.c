@@ -244,6 +244,7 @@ static game_condition_t game_loop() {
         }
 
         show_screen();
+        show_statusbar();
 
         /*
          * Wait for tick.  The tick defines the basic timing of our
