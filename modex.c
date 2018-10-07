@@ -538,21 +538,47 @@ void show_screen() {
 }
 
 
-  void show_statusbar() {
-    unsigned char status_buf[STATUS_BAR_SIZE * 4];    /* create status bar pic*/
+void show_statusbar(char* room_name, char* status_msg, char* typed) {
+    unsigned char status_img[4*STATUS_BAR_SIZE];    /* create status bar pic*/
+    unsigned char status_buf[4][STATUS_BAR_SIZE];    /* create status bar buffer*/
     int i;                  /* loop index over status buffer*/
     int j;                  /* loop index over video plane*/
+    int m, n;                  /* loop index for add space*/
     unsigned short target_stat = 0x0000;  /* target buffer for status bar*/
 
-    /* fill in  status bar color */
-    for (i = 0; i < STATUS_BAR_SIZE*4; i++){
-          status_buf[i] = 0x2D;
+
+
+    for(i = 0; i < STATUS_BAR_SIZE*4; i++){
+      status_img[i] = 0x14;
     }
+
+    if('\0' == status_msg[0]){
+      char print_str[40];
+      for(m = 0; m < 40; m++){
+        print_str[m] = " ";
+      }
+
+      text_to_graph(status_img, print_str);
+
+    }else{
+      int mid_offset = (40 - strlen(status_msg))/2;
+      char space[mid_offset];
+      for(n = 0; n < mid_offset; n++){
+        space[n] = " ";
+      }
+      strcat(space, status_msg);
+      text_to_graph(status_img, space);
+    }
+
+
+
+    graph_to_buffer(status_img, status_buf);
+
 
     /* copy status bar to video mem */
     for (j = 0; j < 4; j++) {
       SET_WRITE_MASK(1 << (j + 8));
-      copy_status(status_buf + j*STATUS_BAR_SIZE, target_stat);
+      copy_status(status_buf[j] , target_stat);
     }
 
     /*
@@ -562,6 +588,24 @@ void show_screen() {
     OUTW(0x03D4, (target_img & 0xFF00) | 0x0C);
     OUTW(0x03D4, ((target_img & 0x00FF) << 8) | 0x0D);
 }
+
+
+void graph_to_buffer(unsigned char* img, unsigned char buf[4][1440]){
+
+    int i;
+    int add_idx;
+
+    for(i = 0; i < STATUS_BAR_SIZE*4; i++){
+      add_idx = i/4;
+      buf[0][add_idx] = img[add_idx*4];
+      buf[1][add_idx] = img[add_idx*4+1];
+      buf[2][add_idx] = img[add_idx*4+2];
+      buf[3][add_idx] = img[add_idx*4+3];
+    }
+
+
+}
+
 
 
 /*

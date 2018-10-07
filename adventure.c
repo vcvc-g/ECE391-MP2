@@ -244,7 +244,7 @@ static game_condition_t game_loop() {
         }
 
         show_screen();
-        show_statusbar();
+        show_statusbar(room_name(game_info.where), status_msg, get_typed_command());
 
         /*
          * Wait for tick.  The tick defines the basic timing of our

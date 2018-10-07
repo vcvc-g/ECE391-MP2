@@ -125,7 +125,9 @@ extern void set_view_window(int scr_x, int scr_y);
 extern void show_screen();
 
 /* show the status bar view window on the monitor */
-extern void show_statusbar();
+extern void show_statusbar(char* room_name, char* status_msg, char* typed);
+
+extern void graph_to_buffer(unsigned char* img, unsigned char buf[4][1440]);
 
 /* clear the video memory in mode X */
 extern void clear_screens();

@@ -561,3 +561,29 @@ unsigned char font_data[256][16] = {
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 };
+
+void text_to_graph(unsigned char* img, char* string){
+
+  unsigned char cur_hex;
+  unsigned char cur_pix;
+  unsigned char bit_mask;
+  int l;
+  int c_row;
+  int c_col;
+  if(sizeof(string) != 0){
+        for(l = 0; l < strlen(string); l++){
+              int str_idx = (int)string[l];
+              for(c_row = 0; c_row < 16; c_row++){
+                    cur_hex = font_data[str_idx][c_row];
+                    bit_mask = 0x80;
+                    for(c_col = 0; c_col < 8; c_col++){
+                        cur_pix = cur_hex & bit_mask;
+                        if(cur_pix == bit_mask){
+                          img[c_row*320 + l*8 + c_col] = 0x80;
+                        }
+                        bit_mask >>= 1;
+                    }
+              }
+        }
+  }
+}
