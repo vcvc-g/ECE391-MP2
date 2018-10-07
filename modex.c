@@ -545,6 +545,7 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
     int j;                  /* loop index over video plane*/
     int m, n;                  /* loop index for add space*/
     unsigned short target_stat = 0x0000;  /* target buffer for status bar*/
+    char print_str[] = "caocaocaoco";
 
 
 
@@ -552,11 +553,9 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
       status_img[i] = 0x14;
     }
 
+    
+/*
     if('\0' == status_msg[0]){
-      char print_str[40];
-      for(m = 0; m < 40; m++){
-        print_str[m] = " ";
-      }
 
       text_to_graph(status_img, print_str);
 
@@ -569,9 +568,9 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
       strcat(space, status_msg);
       text_to_graph(status_img, space);
     }
+*/
 
-
-
+    text_to_graph(status_img, print_str);
     graph_to_buffer(status_img, status_buf);
 
 
