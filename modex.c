@@ -544,31 +544,39 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
     int i;                  /* loop index over status buffer*/
     int j;                  /* loop index over video plane*/
     int m, n;                  /* loop index for add space*/
+    int i_r, i_m;
     unsigned short target_stat = 0x0000;  /* target buffer for status bar*/
-    char print_str[] = "caocaocaoco";
-
-
+    char print_str[41] = {' '};
 
     for(i = 0; i < STATUS_BAR_SIZE*4; i++){
       status_img[i] = 0x14;
     }
 
-    
-/*
+
+
+
+    for(m = 0; m < 40; m++){
+      print_str[m] = ' ';
+    }
+
     if('\0' == status_msg[0]){
 
+      int len_room = strlen(room_name);
+      for(i_r = 0; i_r < len_room; i_r++){
+        print_str[i_r] = room_name[i_r];
+      }
       text_to_graph(status_img, print_str);
 
     }else{
       int mid_offset = (40 - strlen(status_msg))/2;
-      char space[mid_offset];
       for(n = 0; n < mid_offset; n++){
-        space[n] = " ";
+        print_str[n] = " ";
       }
-      strcat(space, status_msg);
-      text_to_graph(status_img, space);
+      for(i_m = mid_offset; i_m < mid_offset+strlen(status_msg); i_m++){
+        print_str[i_m] = status_msg[i_m];
+      }
     }
-*/
+
 
     text_to_graph(status_img, print_str);
     graph_to_buffer(status_img, status_buf);
