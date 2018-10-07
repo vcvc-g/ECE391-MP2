@@ -537,14 +537,22 @@ void show_screen() {
     OUTW(0x03D4, ((target_img & 0x00FF) << 8) | 0x0D);
 }
 
-
+/*
+ * show_statusbar
+ *     DESCRIPTION: Show the logical view window on the video display.
+ *     INPUTS: char* room_name, char* status_msg, char* typed
+ *     OUTPUTS: none
+ *     RETURN VALUE: none
+ *     SIDE EFFECTS: copies from the build buffer to video memory;
+ *                   shifts the VGA display source to point to the new image
+ */
 void show_statusbar(char* room_name, char* status_msg, char* typed) {
     unsigned char status_img[4*STATUS_BAR_SIZE];    /* create status bar pic*/
     unsigned char status_buf[4][STATUS_BAR_SIZE];    /* create status bar buffer*/
     int i;                  /* loop index over status buffer*/
     int j;                  /* loop index over video plane*/
-    int m, n;                  /* loop index for add space*/
-    int i_r, i_m;
+    int m, n;               /* loop index for add space*/
+    int i_r, i_t ,i_m;		/* loop index for room, typed and msg*/
     unsigned short target_stat = 0x0000;  /* target buffer for status bar*/
     char print_str[41] = {' '};
 
@@ -562,18 +570,28 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
     if('\0' == status_msg[0]){
 
       int len_room = strlen(room_name);
+      int len_type = strlen(typed);
       for(i_r = 0; i_r < len_room; i_r++){
         print_str[i_r] = room_name[i_r];
       }
-      text_to_graph(status_img, print_str);
+
+      if(len_type < 20){
+      	print_str[39] = '_';
+      	int start_idx = 39 - len_type;
+      	for(i_t = start_idx; i_t < start_idx+len_type; i_t ++){
+      		print_str[i_t] = typed[i_t-start_idx];
+      	}
+      }else if(len_type >= 20){
+      	for(i_t = 20; i_t < 40; i_t++){
+            print_str[i_t] = typed[i_t-20];
+        }
+      }
+
 
     }else{
       int mid_offset = (40 - strlen(status_msg))/2;
-      for(n = 0; n < mid_offset; n++){
-        print_str[n] = " ";
-      }
-      for(i_m = mid_offset; i_m < mid_offset+strlen(status_msg); i_m++){
-        print_str[i_m] = status_msg[i_m];
+      for(i_m = 0; i_m < strlen(status_msg); i_m++){
+        print_str[i_m+mid_offset] = status_msg[i_m];
       }
     }
 

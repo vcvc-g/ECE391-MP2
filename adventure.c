@@ -243,8 +243,11 @@ static game_condition_t game_loop() {
             enter_room = 0;
         }
 
+		
         show_screen();
+		(void)pthread_mutex_lock(&msg_lock);
         show_statusbar(room_name(game_info.where), status_msg, get_typed_command());
+		(void)pthread_mutex_unlock(&msg_lock);
 
         /*
          * Wait for tick.  The tick defines the basic timing of our
