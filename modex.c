@@ -543,30 +543,30 @@ void show_screen() {
  *     INPUTS: char* room_name, char* status_msg, char* typed
  *     OUTPUTS: none
  *     RETURN VALUE: none
- *     SIDE EFFECTS: copies from the build buffer to video memory;
+ *     SIDE EFFECTS: create status bar image and and buffer;
+ *					 copies from the build buffer to video memory;
  *                   shifts the VGA display source to point to the new image
  */
 void show_statusbar(char* room_name, char* status_msg, char* typed) {
-    unsigned char status_img[4*STATUS_BAR_SIZE];    /* create status bar pic*/
+    unsigned char status_img[4*STATUS_BAR_SIZE];    /* create status bar image*/
     unsigned char status_buf[4][STATUS_BAR_SIZE];    /* create status bar buffer*/
     int i;                  /* loop index over status buffer*/
     int j;                  /* loop index over video plane*/
     int m, n;               /* loop index for add space*/
-    int i_r, i_t ,i_m;		/* loop index for room, typed and msg*/
+    int i_r, i_t ,i_m;		/* loop index for room, typed and message*/
     unsigned short target_stat = 0x0000;  /* target buffer for status bar*/
-    char print_str[41] = {' '};
+    char print_str[41] = {' '};	/* empty space base string*/
 
+	/* paint status bar*/
     for(i = 0; i < STATUS_BAR_SIZE*4; i++){
       status_img[i] = 0x14;
     }
-
-
-
-
+	/* full with space*/
     for(m = 0; m < 40; m++){
       print_str[m] = ' ';
     }
 
+	/* string for no status_msg*/
     if('\0' == status_msg[0]){
 
       int len_room = strlen(room_name);
@@ -574,7 +574,7 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
       for(i_r = 0; i_r < len_room; i_r++){
         print_str[i_r] = room_name[i_r];
       }
-
+	/* check typed length */
       if(len_type < 20){
       	print_str[39] = '_';
       	int start_idx = 39 - len_type;
@@ -587,7 +587,7 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
         }
       }
 
-
+	/* string for status_msg*/
     }else{
       int mid_offset = (40 - strlen(status_msg))/2;
       for(i_m = 0; i_m < strlen(status_msg); i_m++){
@@ -595,10 +595,8 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
       }
     }
 
-
     text_to_graph(status_img, print_str);
     graph_to_buffer(status_img, status_buf);
-
 
     /* copy status bar to video mem */
     for (j = 0; j < 4; j++) {
@@ -630,7 +628,6 @@ void graph_to_buffer(unsigned char* img, unsigned char buf[4][1440]){
 
 
 }
-
 
 
 /*

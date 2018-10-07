@@ -562,25 +562,39 @@ unsigned char font_data[256][16] = {
      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 };
 
+
+
+/*
+ * text_to_graph
+ *     DESCRIPTION: Draw the char string on the image pointer 
+ *     INPUTS: unsigned char* image, char* string
+ *     OUTPUTS: none
+ *     RETURN VALUE: none
+ */
 void text_to_graph(unsigned char* img, char* string){
 
-  unsigned char cur_hex;
-  unsigned char cur_pix;
-  unsigned char bit_mask;
-  int l;
-  int c_row;
-  int c_col;
+  unsigned char cur_hex;	   /* current hex  	       */
+  unsigned char cur_pix;	   /* current pixel in hex */
+  unsigned char bit_mask;	   /* bit mask for hex     */
+  int l;			/* loop index for string length    */
+  int c_row;		/* loop index for 16 hex in char   */
+  int c_col;		/* loop index for 8 bit in hex     */
+  
+  /* string input null check      */
   if(sizeof(string) != 0){
         for(l = 0; l < strlen(string); l++){
+			  /* type cast to int   */
               int str_idx = (int)string[l];
               for(c_row = 0; c_row < 16; c_row++){
                     cur_hex = font_data[str_idx][c_row];
                     bit_mask = 0x80;
                     for(c_col = 0; c_col < 8; c_col++){
                         cur_pix = cur_hex & bit_mask;
+						/* check current bit, if 1 then color that pixel   */
                         if(cur_pix == bit_mask){
                           img[c_row*320 + l*8 + c_col] = 0x80;
                         }
+						 /* mask shift check next bit   */
                         bit_mask >>= 1;
                     }
               }
