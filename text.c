@@ -571,6 +571,7 @@ unsigned char font_data[256][16] = {
  *     OUTPUTS: none
  *     RETURN VALUE: none
  */
+#define Char_Color 0x00
 void text_to_graph(unsigned char* img, char* string){
 
   unsigned char cur_hex;	   /* current hex  	       */
@@ -592,7 +593,7 @@ void text_to_graph(unsigned char* img, char* string){
                         cur_pix = cur_hex & bit_mask;
 						/* check current bit, if 1 then color that pixel   */
                         if(cur_pix == bit_mask){
-                          img[c_row*320 + l*8 + c_col] = 0x80;
+                          img[c_row*320 + l*8 + c_col] = Char_Color;
                         }
 						 /* mask shift check next bit   */
                         bit_mask >>= 1;

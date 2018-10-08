@@ -81,7 +81,13 @@
 #define NUM_CRTC_REGS           25
 #define NUM_GRAPHICS_REGS        9
 #define NUM_ATTR_REGS           22
-#define STATUS_BAR_SIZE       1440
+
+/* Status Bar  parameters */
+#define STATUS_BAR_SIZE       1440 //Status Bar size in 4 plane buffer
+#define MSG_MAX                 20 //Message Max Length
+#define STAT_MIDDLE             20 //Status Bar Middle Index
+#define STAT_MAX                40 //Status Bar Max String Length
+#define STATUS_COLOR          0x14 //Status Bar Color
 
 /* VGA register settings for mode X */
 static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
@@ -547,26 +553,26 @@ void show_screen() {
  *					 copies from the build buffer to video memory;
  *                   shifts the VGA display source to point to the new image
  */
-void show_statusbar(char* room_name, char* status_msg, char* typed) {
+void show_statusbar(const char* room_name, char* status_msg, const char* typed) {
     unsigned char status_img[4*STATUS_BAR_SIZE];    /* create status bar image*/
     unsigned char status_buf[4][STATUS_BAR_SIZE];    /* create status bar buffer*/
     int i;                  /* loop index over status buffer*/
     int j;                  /* loop index over video plane*/
-    int m, n;               /* loop index for add space*/
+    int m;                  /* loop index for add space*/
     int i_r, i_t ,i_m;		/* loop index for room, typed and message*/
     unsigned short target_stat = 0x0000;  /* target buffer for status bar*/
     char print_str[41] = {' '};	/* empty space base string*/
 
 	/* paint status bar*/
     for(i = 0; i < STATUS_BAR_SIZE*4; i++){
-      status_img[i] = 0x14;
+      status_img[i] = STATUS_COLOR;
     }
 	/* full with space*/
-    for(m = 0; m < 40; m++){
+    for(m = 0; m < STAT_MAX; m++){
       print_str[m] = ' ';
     }
 
-	/* string for no status_msg*/
+	/* output string for no status_msg*/
     if('\0' == status_msg[0]){
 
       int len_room = strlen(room_name);
@@ -574,31 +580,33 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
       for(i_r = 0; i_r < len_room; i_r++){
         print_str[i_r] = room_name[i_r];
       }
-	/* check typed length */
-      if(len_type < 20){
-      	print_str[39] = '_';
-      	int start_idx = 39 - len_type;
+	  /* check typed length */
+      if(len_type < MSG_MAX){
+      	print_str[39] = '_';  // print msg with "_" at the end index 39
+      	int start_idx = 39 - len_type;  //calculate start_idx for msg shorter than MSG_MAX
       	for(i_t = start_idx; i_t < start_idx+len_type; i_t ++){
       		print_str[i_t] = typed[i_t-start_idx];
       	}
-      }else if(len_type >= 20){
-      	for(i_t = 20; i_t < 40; i_t++){
-            print_str[i_t] = typed[i_t-20];
+      }else if(len_type >= MSG_MAX){
+      	for(i_t = STAT_MIDDLE; i_t < STAT_MAX; i_t++){ //print msg without "_"
+            print_str[i_t] = typed[i_t-STAT_MIDDLE];
         }
       }
 
-	/* string for status_msg*/
+	/* output string for status_msg*/
     }else{
-      int mid_offset = (40 - strlen(status_msg))/2;
+      int mid_offset = (STAT_MAX - strlen(status_msg))/2; //calculate front offset for status_msg stay at middle
       for(i_m = 0; i_m < strlen(status_msg); i_m++){
         print_str[i_m+mid_offset] = status_msg[i_m];
       }
     }
 
+    /* call the text_to_graph to create image for output string*/
     text_to_graph(status_img, print_str);
+    /* call the graph_to_buffer to create build buffer for image*/
     graph_to_buffer(status_img, status_buf);
 
-    /* copy status bar to video mem */
+    /* copy status bar build buffer to video mem */
     for (j = 0; j < 4; j++) {
       SET_WRITE_MASK(1 << (j + 8));
       copy_status(status_buf[j] , target_stat);
@@ -612,11 +620,17 @@ void show_statusbar(char* room_name, char* status_msg, char* typed) {
     OUTW(0x03D4, ((target_img & 0x00FF) << 8) | 0x0D);
 }
 
-
+/*
+ * graph_to_buffer
+ *     DESCRIPTION: convert image to build buffer with 4 planes
+ *     INPUTS: unsigned char* image, unsigned char buf[4][1440]
+ *     OUTPUTS: none
+ *     RETURN VALUE: none
+ */
 void graph_to_buffer(unsigned char* img, unsigned char buf[4][1440]){
 
-    int i;
-    int add_idx;
+    int i;          //Loop index for all pixel of status bar
+    int add_idx;    //The index for each group of 4 plane pixels
 
     for(i = 0; i < STATUS_BAR_SIZE*4; i++){
       add_idx = i/4;
@@ -1078,7 +1092,7 @@ static void set_text_mode_3(int clear_scr) {
 
 /*
  * copy_image
- *     DESCRIPTION: Copy one plane of a screen from the build buffer to the video memory.
+ *     DESCRIPTION: Copy one plane of a screen image from the build buffer to the video memory.
  *     INPUTS: img -- a pointer to a single screen plane in the build buffer
  *             scr_addr -- the destination offset in video memory
  *     OUTPUTS: none
@@ -1105,7 +1119,7 @@ static void copy_image(unsigned char* img, unsigned short scr_addr) {
 
 /*
  * copy_status
- *     DESCRIPTION: Copy one plane of a screen from the build buffer to the video memory.
+ *     DESCRIPTION: Copy one plane of a status bar from the build buffer to the video memory.
  *     INPUTS: img -- a pointer to a single screen plane in the build buffer
  *             scr_addr -- the destination offset in video memory
  *     OUTPUTS: none
@@ -1118,6 +1132,7 @@ static void copy_status(unsigned char* img, unsigned short scr_addr) {
      * implemented using ISA-specific features like those below,
      * but the code here provides an example of x86 string moves
      */
+    //1440 is STATUS_BAR_SIZE
     asm volatile("                                                  \n\
         cld                                                         \n\
         movl $1440, %%ecx                                          \n\
