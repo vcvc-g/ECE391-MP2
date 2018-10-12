@@ -29,7 +29,8 @@
 
 #define debug(str, ...) printk(KERN_DEBUG "%s: " str, __FUNCTION__, ## __VA_ARGS__)
 
-unsigned char* button_packet[2];
+unsigned char* button_packet[3];
+unsigned char* button_set[1];
 
 /************************ Protocol Implementation *************************/
 
@@ -48,19 +49,21 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
 
     switch (a) {
       case MTCP_ERROR:
-        break;
+          break;
       case MTCP_ACK:
-        break;
+          break;
       case MTCP_RESET:
-        opcode = MTCP_LED_USR
-        tuxctl_ldisc_put(tty, opcode, 1);
-        opcode = MTCP_BIOC_ON
-        tuxctl_ldisc_put(tty, opcode, 1);
-        break;
+          opcode = MTCP_LED_USR
+          tuxctl_ldisc_put(tty, &opcode, 1);
+          opcode = MTCP_BIOC_ON
+          tuxctl_ldisc_put(tty, &opcode, 1);
+          break;
       case MTCP_BIOC_EVT
-        button_packet[0] = b;
-        button_packet[1] = c;
-        break;
+          button_packet[1] = b;
+          button_packet[2] = c;
+          break;
+      default:
+          return;
     }
 
 
@@ -69,14 +72,6 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
     /*printk("packet : %x %x %x\n", a, b, c); */
 }
 
-  void tux_init(struct tty_struct* tty){
-
-      char *buf[2];
-      buf[0] = MTCP_LED_USR;
-      buf[1] = MTCP_BIOC_ON;
-      tuxctl_ldisc_put(tty, buf, 2);
-
-}
 
 /******** IMPORTANT NOTE: READ THIS BEFORE IMPLEMENTING THE IOCTLS ************
  *                                                                            *
@@ -99,8 +94,18 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
        and returns 0. Assume that any user-level code that interacts with your
        device will call this ioctl before any others. */
         case TUX_INIT:
+            char *buf[2];
+            buf[0] = MTCP_LED_USR;
+            buf[1] = MTCP_BIOC_ON;
+            tuxctl_ldisc_put(tty, buf, 2);
+            return 0;
+    /*Takes a pointer to a 32-bit integer. Returns -EINVAL error if this pointer
+    is not valid. Otherwise, sets the bits of the low byte corresponding to the
+    currently pressed buttons */
+        case TUX_BUTTONS:
             if(arg == NULL) return -EINVAL;
-            tux_init(tty);
+            button_set[0] = ((button_packet[1] & 0x0F) | ((button_packet[2]<<4) & 0xF0));
+
             return 0;
     /*The argument is a 32-bit integer of the following form: The low 16-bits
       specify a number whose hexadecimal value is to be displayed on the 7-segment
@@ -108,17 +113,15 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
       turned on. The low 4 bits of the highest byte (bits 27:24) specify whether
       the corresponding decimal points should be turned on.
       This ioctl should return 0. */
-        case TUX_BUTTONS:
-            if(arg == NULL) return -EINVAL;
-
-            break;
-    /*Takes a pointer to a 32-bit integer. Returns -EINVAL error if this pointer
-    is not valid. Otherwise, sets the bits of the low byte corresponding to the
-    currently pressed buttons */
         case TUX_SET_LED:
-            if(arg == NULL) return -EINVAL;
+            unsigned long hex_display, dec_points, led_on
+            char *buf[6];
+            buf[0] = MTCP_LED_SET;
+            led_on = (arg >> 16) & 0x0F;
 
-            break;
+
+
+            return 0;
         default:
             return -EINVAL;
     }
