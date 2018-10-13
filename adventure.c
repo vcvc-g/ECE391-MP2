@@ -204,7 +204,7 @@ void* tux_thread(void * arg){
         }
         switch (buttons) {
         // update game state
-            case :
+            case 0x01:
                 break;
             case :
                 break;
