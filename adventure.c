@@ -206,7 +206,8 @@ void* tux_thread(void * arg){
         // update game state
             case :
                 break;
-
+            case :
+                break;
 
             default:
                 break;
