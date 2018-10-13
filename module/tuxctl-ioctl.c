@@ -53,9 +53,9 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
       case MTCP_ACK:
           break;
       case MTCP_RESET:
-          opcode = MTCP_LED_USR
+          opcode = MTCP_LED_USR;
           tuxctl_ldisc_put(tty, &opcode, 1);
-          opcode = MTCP_BIOC_ON
+          opcode = MTCP_BIOC_ON;
           tuxctl_ldisc_put(tty, &opcode, 1);
           break;
       case MTCP_BIOC_EVT
