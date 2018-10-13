@@ -29,7 +29,9 @@
 
 #define debug(str, ...) printk(KERN_DEBUG "%s: " str, __FUNCTION__, ## __VA_ARGS__)
 
-unsigned char* button_packet[3];
+static unsigned char* button_packet[3];
+static unsigned long led_state;
+static unsigned long hold = 0;
 
 
 /************************ Protocol Implementation *************************/
@@ -51,12 +53,15 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
       case MTCP_ERROR:
           break;
       case MTCP_ACK:
+          hold = 0;
           break;
       case MTCP_RESET:
+          hold = 1;
           opcode = MTCP_LED_USR;
           tuxctl_ldisc_put(tty, &opcode, 1);
           opcode = MTCP_BIOC_ON;
           tuxctl_ldisc_put(tty, &opcode, 1);
+          set_led(tty, led_state);
           break;
       case MTCP_BIOC_EVT:
           button_packet[1] = b;
@@ -132,6 +137,37 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
       return led_byte;
 }
 
+void set_led(struct tty_struct* tty, unsigned long arg){
+    char led_on, led_mask, led_dp, hex_mask, cur_led, cur_dp, cur_hex;
+    char *led_buf[6];
+    unsigned long hex_arg = arg;
+    int buf_idx;
+
+    led_state = arg;
+    led_buf[0] = MTCP_LED_SET;
+    led_on = (arg >> 16) & 0x0F;
+    led_buf[1] = led_on;
+    led_dp = (arg >> 24) & 0x0F;
+
+    led_mask = 0x01;
+    hex_mask = 0x000F;
+    buf_idx = 2;
+    for(int i = 0; i < 4; i++){
+        cur_led = led_on & led_mask;
+        if(cur_led == led_mask){
+            cur_dp = led_dp & led_mask;
+            cur_hex = hex_arg & hex_mask;
+            led_buf[buf_idx] = hex_display(cur_hex, cur_dp);
+            buf_idx += 1;
+        }
+        led_mask <<= 1;
+        hex_arg >>= 4;
+    }
+
+    tuxctl_ldisc_put(tty, led_buf, buf_idx);
+  }
+
+
 
 /******** IMPORTANT NOTE: READ THIS BEFORE IMPLEMENTING THE IOCTLS ************
  *                                                                            *
@@ -167,6 +203,7 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
             unsigned char* button_set[1];
             button_set[0] = ((button_packet[1] & 0x0F) | ((button_packet[2]<<4) & 0xF0));
             //button info ready to send
+            copy_to_user();
             return 0;
     /*The argument is a 32-bit integer of the following form: The low 16-bits
       specify a number whose hexadecimal value is to be displayed on the 7-segment
@@ -175,31 +212,7 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
       the corresponding decimal points should be turned on.
       This ioctl should return 0. */
         case TUX_SET_LED:
-            char led_on, led_mask, led_dp, hex_mask, cur_led, cur_dp, cur_hex;
-            char *led_buf[6];
-            unsigned long hex_arg = arg;
-            int buf_idx;
-            led_buf[0] = MTCP_LED_SET;
-            led_on = (arg >> 16) & 0x0F;
-            led_buf[1] = led_on;
-            led_dp = (arg >> 24) & 0x0F;
-
-            led_mask = 0x01;
-            hex_mask = 0x000F;
-            buf_idx = 2;
-            for(int i = 0; i < 4; i++){
-                cur_led = led_on & led_mask;
-                if(cur_led == led_mask){
-                    cur_dp = led_dp & led_mask;
-                    cur_hex = hex_arg & hex_mask;
-                    led_buf[buf_idx] = hex_display(cur_hex, cur_dp);
-                    buf_idx += 1;
-                }
-                led_mask <<= 1;
-                hex_arg >>= 4;
-            }
-
-            tuxctl_ldisc_put(tty, led_buf, buf_idx);
+            set_led(tty, arg);
             return 0;
 
         default:
