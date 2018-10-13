@@ -72,7 +72,7 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
     /*printk("packet : %x %x %x\n", a, b, c); */
 }
 
-  unsigned char hex_display(unsigned long hex, int dp_on){
+  unsigned char hex_display(char hex, char dp_on){
       unsigned char led_byte;
       switch (hex){
           case 0x0:
@@ -123,6 +123,8 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
           case 0xF:
               led_byte = 0xE8;
               break;
+          default:
+              return 0;
       }
       if(dp_on){
           led_byte += 0x10;
@@ -173,29 +175,33 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
       the corresponding decimal points should be turned on.
       This ioctl should return 0. */
         case TUX_SET_LED:
-            unsigned long dec_points, led_on, led_mask, led_dp, cur_led, cur_dp;
+            char led_on, led_mask, led_dp, hex_mask, cur_led, cur_dp, cur_hex;
             char *led_buf[6];
+            unsigned long hex_arg = arg;
+            int buf_idx;
             led_buf[0] = MTCP_LED_SET;
             led_on = (arg >> 16) & 0x0F;
             led_buf[1] = led_on;
             led_dp = (arg >> 24) & 0x0F;
 
             led_mask = 0x01;
+            hex_mask = 0x000F;
+            buf_idx = 2;
             for(int i = 0; i < 4; i++){
                 cur_led = led_on & led_mask;
                 if(cur_led == led_mask){
-                    //display cur_led
                     cur_dp = led_dp & led_mask;
-
-
-
+                    cur_hex = hex_arg & hex_mask;
+                    led_buf[buf_idx] = hex_display(cur_hex, cur_dp);
+                    buf_idx += 1;
                 }
                 led_mask <<= 1;
+                hex_arg >>= 4;
             }
 
-
-            tuxctl_ldisc_put(tty, led_buf, 6);
+            tuxctl_ldisc_put(tty, led_buf, buf_idx);
             return 0;
+
         default:
             return -EINVAL;
     }
