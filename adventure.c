@@ -170,6 +170,10 @@ static pthread_mutex_t msg_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  msg_cv = PTHREAD_COND_INITIALIZER;
 static char status_msg[STATUS_MSG_LEN + 1] = { '\0' };
 
+static pthread_t tux_thread_id;
+static pthread_mutex_t tux_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  tux_cv = PTHREAD_COND_INITIALIZER;
+
 
 /*
  * cancel_status_thread
@@ -183,6 +187,35 @@ static char status_msg[STATUS_MSG_LEN + 1] = { '\0' };
 static void cancel_status_thread(void* ignore) {
     (void)pthread_cancel(status_thread_id);
 }
+
+
+
+
+
+void* tux_thread(void * arg){
+    int *bottons;
+    while (1) {
+        pthread_mutex_lock(&tux_lock);
+
+        tux_input(bottons);
+
+        while (!buttons_pressed){
+            pthread_cond_wait(&tux_cv, &tux_lock);
+        }
+        switch (buttons) {
+        // update game state
+            case :
+                break;
+
+
+            default:
+                break;
+        }
+        pthread_mutex_unlock(&tux_lock);
+    }
+    return NULL;
+}
+
 
 
 /*
@@ -735,6 +768,12 @@ int main() {
     }
     push_cleanup(cancel_status_thread, NULL);
 
+
+    /* Create TUX message thread. */
+    if (0 != pthread_create(&tux_thread_id, NULL, tux_thread, NULL)) {
+        PANIC("failed to create status thread");
+    }
+    push_cleanup(cancel_status_thread, NULL);
 
     /* Start mode X. */
     if (0 != set_mode_X(fill_horiz_buffer, fill_vert_buffer)) {

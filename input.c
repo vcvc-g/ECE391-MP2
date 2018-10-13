@@ -57,8 +57,11 @@
 #include "assert.h"
 #include "input.h"
 
+#include "module/tuxctl-ioctl.h"
+#include "module/mtcp.h"
+
 /* set to 1 and compile this file by itself to test functionality */
-#define TEST_INPUT_DRIVER 0
+#define TEST_INPUT_DRIVER 1
 
 /* set to 1 to use tux controller; otherwise, uses keyboard input */
 #define USE_TUX_CONTROLLER 0
@@ -66,7 +69,7 @@
 
 /* stores original terminal settings */
 static struct termios tio_orig;
-
+static int fd;
 
 /*
  * init_input
@@ -82,6 +85,7 @@ static struct termios tio_orig;
  */
 int init_input() {
     struct termios tio_new;
+
 
     /*
      * Set non-blocking mode so that stdin can be read without blocking
@@ -292,6 +296,7 @@ cmd_t get_command() {
  */
 void shutdown_input() {
     (void)tcsetattr(fileno(stdin), TCSANOW, &tio_orig);
+    close(fd);
 }
 
 
@@ -305,14 +310,55 @@ void shutdown_input() {
  *   SIDE EFFECTS: changes state of controller's display
  */
 void display_time_on_tux(int num_seconds) {
+
 #if (USE_TUX_CONTROLLER != 0)
 #error "Tux controller code is not operational yet."
 #endif
+
+unsigned long display_value;
+unsigned long dig1, dig2, dig3, dig4;
+unsigned long second, mins;
+
+second = num_seconds%60;
+mins = num_seconds/60;
+
+if(mins < 10) display_value = 0x04070000;
+else display_value = 0x040F0000;
+
+dig1 = mins/10;
+dig2 = mins%10;
+dig3 = second/10;
+dig4 = second%10;
+
+display_value |= (dig1 <<12) | (dig2 <<8) | (dig3 <<4) | dig4;
+
+ioctl(fd, TUX_SET_LED, display_value);
+
 }
+
+
+void tux_init(){
+    ioctl(fd,TUX_INIT);
+}
+
+
+void tux_input(int *tux_botton){
+    ioctl(fd, TUX_BUTTONS, tux_botton);
+}
+
+
+
 
 
 #if (TEST_INPUT_DRIVER == 1)
 int main() {
+
+
+    fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY);
+    int ldsic_num = N_MOUSE;
+    ioctl(fd, TIOCSETD, &ldsic_num);
+    ioctl(fd,TUX_INIT);
+
     cmd_t last_cmd = CMD_NONE;
     cmd_t cmd;
     static const char* const cmd_name[NUM_COMMANDS] = {
