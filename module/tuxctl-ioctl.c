@@ -30,7 +30,7 @@
 #define debug(str, ...) printk(KERN_DEBUG "%s: " str, __FUNCTION__, ## __VA_ARGS__)
 
 unsigned char* button_packet[3];
-unsigned char* button_set[1];
+
 
 /************************ Protocol Implementation *************************/
 
@@ -72,6 +72,64 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
     /*printk("packet : %x %x %x\n", a, b, c); */
 }
 
+  unsigned char hex_display(unsigned long hex, int dp_on){
+      unsigned char led_byte;
+      switch (hex){
+          case 0x0:
+              led_byte = 0xE7;
+              break;
+          case 0x1:
+              led_byte = 0x06;
+              break;
+          case 0x2:
+              led_byte = 0xCB;
+              break;
+          case 0x3:
+              led_byte = 0x8F;
+              break;
+          case 0x4:
+              led_byte = 0x2E;
+              break;
+          case 0x5:
+              led_byte = 0xAD;
+              break;
+          case 0x6:
+              led_byte = 0xED;
+              break;
+          case 0x7:
+              led_byte = 0x86;
+              break;
+          case 0x8:
+              led_byte = 0xEF;
+              break;
+          case 0x9:
+              led_byte = 0xAF;
+              break;
+          case 0xA:
+              led_byte = 0xEE;
+              break;
+          case 0xB:
+              led_byte = 0x6D; // b:0x6D B:0xEF
+              break;
+          case 0xC:
+              led_byte = 0xE1;
+              break;
+          case 0xD:
+              led_byte = 0x4F; // d:0x4F D:0xE7
+              break;
+          case 0xE:
+              led_byte = 0xE9;
+              break;
+          case 0xF:
+              led_byte = 0xE8;
+              break;
+      }
+      if(dp_on){
+          led_byte += 0x10;
+      }
+      return led_byte;
+}
+
 
 /******** IMPORTANT NOTE: READ THIS BEFORE IMPLEMENTING THE IOCTLS ************
  *                                                                            *
@@ -94,18 +152,19 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
        and returns 0. Assume that any user-level code that interacts with your
        device will call this ioctl before any others. */
         case TUX_INIT:
-            char *buf[2];
-            buf[0] = MTCP_LED_USR;
-            buf[1] = MTCP_BIOC_ON;
-            tuxctl_ldisc_put(tty, buf, 2);
+            char *ini_buf[2];
+            ini_buf[0] = MTCP_LED_USR;
+            ini_buf[1] = MTCP_BIOC_ON;
+            tuxctl_ldisc_put(tty, ini_buf, 2);
             return 0;
     /*Takes a pointer to a 32-bit integer. Returns -EINVAL error if this pointer
     is not valid. Otherwise, sets the bits of the low byte corresponding to the
     currently pressed buttons */
         case TUX_BUTTONS:
             if(arg == NULL) return -EINVAL;
+            unsigned char* button_set[1];
             button_set[0] = ((button_packet[1] & 0x0F) | ((button_packet[2]<<4) & 0xF0));
-
+            //button info ready to send
             return 0;
     /*The argument is a 32-bit integer of the following form: The low 16-bits
       specify a number whose hexadecimal value is to be displayed on the 7-segment
@@ -114,13 +173,28 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
       the corresponding decimal points should be turned on.
       This ioctl should return 0. */
         case TUX_SET_LED:
-            unsigned long hex_display, dec_points, led_on
-            char *buf[6];
-            buf[0] = MTCP_LED_SET;
+            unsigned long dec_points, led_on, led_mask, led_dp, cur_led, cur_dp;
+            char *led_buf[6];
+            led_buf[0] = MTCP_LED_SET;
             led_on = (arg >> 16) & 0x0F;
+            led_buf[1] = led_on;
+            led_dp = (arg >> 24) & 0x0F;
+
+            led_mask = 0x01;
+            for(int i = 0; i < 4; i++){
+                cur_led = led_on & led_mask;
+                if(cur_led == led_mask){
+                    //display cur_led
+                    cur_dp = led_dp & led_mask;
 
 
 
+                }
+                led_mask <<= 1;
+            }
+
+
+            tuxctl_ldisc_put(tty, led_buf, 6);
             return 0;
         default:
             return -EINVAL;
