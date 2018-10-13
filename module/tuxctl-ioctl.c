@@ -56,12 +56,14 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
           hold = 0;
           break;
       case MTCP_RESET:
-          hold = 1;
           opcode = MTCP_LED_USR;
           tuxctl_ldisc_put(tty, &opcode, 1);
           opcode = MTCP_BIOC_ON;
           tuxctl_ldisc_put(tty, &opcode, 1);
-          set_led(tty, led_state);
+          if(hold == 0){
+            hold = 1;
+            set_led(tty, led_state);
+          }
           break;
       case MTCP_BIOC_EVT:
           button_packet[1] = b;
@@ -143,7 +145,6 @@ void set_led(struct tty_struct* tty, unsigned long arg){
     unsigned long hex_arg = arg;
     int buf_idx;
 
-    led_state = arg;
     led_buf[0] = MTCP_LED_SET;
     led_on = (arg >> 16) & 0x0F;
     led_buf[1] = led_on;
@@ -164,7 +165,10 @@ void set_led(struct tty_struct* tty, unsigned long arg){
         hex_arg >>= 4;
     }
 
+    led_state = arg;
     tuxctl_ldisc_put(tty, led_buf, buf_idx);
+
+
   }
 
 
@@ -191,6 +195,7 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
        device will call this ioctl before any others. */
         case TUX_INIT:
             char *ini_buf[2];
+            hold = 1;
             ini_buf[0] = MTCP_LED_USR;
             ini_buf[1] = MTCP_BIOC_ON;
             tuxctl_ldisc_put(tty, ini_buf, 2);
