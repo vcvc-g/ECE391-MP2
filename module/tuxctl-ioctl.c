@@ -58,7 +58,7 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
           opcode = MTCP_BIOC_ON;
           tuxctl_ldisc_put(tty, &opcode, 1);
           break;
-      case MTCP_BIOC_EVT
+      case MTCP_BIOC_EVT:
           button_packet[1] = b;
           button_packet[2] = c;
           break;
