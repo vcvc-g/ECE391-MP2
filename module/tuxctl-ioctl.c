@@ -33,8 +33,13 @@ static uint8_t button_packet[3];
 static unsigned long led_state;
 static unsigned long hold = 0;
 
+static void mtcp_reset(struct tty_struct* tty);
+static void tux_init(struct tty_struct* tty);
 static void set_led(struct tty_struct* tty, unsigned long arg);
+static int tux_buttons(struct tty_struct* tty, unsigned long arg);
 static uint8_t hex_display(char hex, char dp_on);
+
+static spinlock_t button_lock = SPIN_LOCK_UNLOCKED;
 
 /************************ Protocol Implementation *************************/
 
@@ -45,7 +50,7 @@ static uint8_t hex_display(char hex, char dp_on);
  */
 void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
     unsigned a, b, c;
-    uint8_t opcode[2];
+
 
     a = packet[0]; /* Avoid printk() sign extending the 8-bit */
     b = packet[1]; /* values when printing them. */
@@ -53,32 +58,33 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
 
     switch (a) {
       case MTCP_ERROR:
-          break;
+          return;
       case MTCP_ACK:
           hold = 0;
-          break;
+          return;
       case MTCP_RESET:
-          opcode[0] = MTCP_LED_USR;
-          //tuxctl_ldisc_put(tty, &opcode, 1);
-          opcode[1] = MTCP_BIOC_ON;
-          tuxctl_ldisc_put(tty, opcode, 2);
-          if(hold == 0){
-            hold = 1;
-            set_led(tty, led_state);
-          }
-          break;
+          mtcp_reset(tty);
+          return;
       case MTCP_BIOC_EVENT:
           button_packet[1] = b;
           button_packet[2] = c;
-          break;
+          return;
       default:
           return;
     }
-
-
-
-
     /*printk("packet : %x %x %x\n", a, b, c); */
+}
+
+
+void mtcp_reset(struct tty_struct* tty){
+    uint8_t opcode[2];
+    opcode[0] = MTCP_LED_USR;
+    //tuxctl_ldisc_put(tty, &opcode, 1);
+    opcode[1] = MTCP_BIOC_ON;
+    tuxctl_ldisc_put(tty, opcode, 2);
+
+    set_led(tty, led_state);
+    return;
 }
 
   uint8_t hex_display(char hex, char dp_on){
@@ -168,12 +174,42 @@ void set_led(struct tty_struct* tty, unsigned long arg){
         led_mask <<= 1;
         hex_arg >>= 4;
     }
+    if(hold ==1){
+        return 0;
+    }
+    else{
+      hold = 1;
+      led_state = arg;
+      tuxctl_ldisc_put(tty, led_buf, buf_idx);
+    }
 
-    led_state = arg;
-    tuxctl_ldisc_put(tty, led_buf, buf_idx);
   }
 
+void tux_init(struct tty_struct* tty){
+      uint8_t ini_buf[2];
+      hold = 1;
+      ini_buf[0] = MTCP_LED_USR;
+      ini_buf[1] = MTCP_BIOC_ON;
+      tuxctl_ldisc_put(tty, ini_buf, 2);
+      return;
+}
 
+int tux_buttons(struct tty_struct* tty, unsigned long arg){
+      uint8_t button_set[1];
+      unsigned long *ptr;
+
+      ptr = (unsigned long *)arg;
+      if(ptr == NULL){
+          return -EINVAL;
+      }
+      spin_lock_irq(&button_lock);
+      button_set[0] = ((button_packet[1] & 0x0F) | ((button_packet[2]<<4) & 0xF0));
+      //button info ready to send
+      copy_to_user(ptr, button_set, 1);
+      spin_unlock_irq(&button_lock);
+      return 0;
+
+}
 
 /******** IMPORTANT NOTE: READ THIS BEFORE IMPLEMENTING THE IOCTLS ************
  *                                                                            *
@@ -191,32 +227,21 @@ void set_led(struct tty_struct* tty, unsigned long arg){
 
 int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
                  unsigned cmd, unsigned long arg) {
-    uint8_t ini_buf[2];
-    uint8_t button_set[1];
-    unsigned long *ptr;
+
+
+
     switch (cmd) {
     /*Takes no arguments. Initializes any variables associated with the driver
        and returns 0. Assume that any user-level code that interacts with your
        device will call this ioctl before any others. */
         case TUX_INIT:
-
-            hold = 1;
-            ini_buf[0] = MTCP_LED_USR;
-            ini_buf[1] = MTCP_BIOC_ON;
-            tuxctl_ldisc_put(tty, ini_buf, 2);
-            led_state = 0xF0FF0000;
-            set_led(tty,led_state);
+            tux_init(tty);
             return 0;
     /*Takes a pointer to a 32-bit integer. Returns -EINVAL error if this pointer
     is not valid. Otherwise, sets the bits of the low byte corresponding to the
     currently pressed buttons */
         case TUX_BUTTONS:
-            ptr = (unsigned long *)arg;
-            if(ptr == NULL) return -EINVAL;
-            button_set[0] = ((button_packet[1] & 0x0F) | ((button_packet[2]<<4) & 0xF0));
-            //button info ready to send
-            copy_to_user(ptr, button_set, 1);
-            return 0;
+            return tux_buttons(tty, arg);
     /*The argument is a 32-bit integer of the following form: The low 16-bits
       specify a number whose hexadecimal value is to be displayed on the 7-segment
       displays. The low 4 bits of the third byte specifies which LED’s should be

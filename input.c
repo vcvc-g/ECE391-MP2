@@ -61,7 +61,7 @@
 #include "module/mtcp.h"
 
 /* set to 1 and compile this file by itself to test functionality */
-#define TEST_INPUT_DRIVER 1
+#define TEST_INPUT_DRIVER 0
 
 /* set to 1 to use tux controller; otherwise, uses keyboard input */
 #define USE_TUX_CONTROLLER 0
@@ -92,7 +92,7 @@ int init_input() {
     fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY);
     int ldsic_num = N_MOUSE;
     ioctl(fd, TIOCSETD, &ldsic_num);
-    ioctl(fd,TUX_INIT,0x00);
+    ioctl(fd, TUX_INIT, 0);
 
     /*
      * Set non-blocking mode so that stdin can be read without blocking
@@ -319,11 +319,11 @@ void shutdown_input() {
  *   SIDE EFFECTS: changes state of controller's display
  */
 void display_time_on_tux(int num_seconds) {
-
+/*
 #if (USE_TUX_CONTROLLER != 0)
 #error "Tux controller code is not operational yet."
 #endif
-
+*/
 unsigned long display_value;
 unsigned long dig1, dig2, dig3, dig4;
 unsigned long second, mins;

@@ -174,7 +174,7 @@ static char status_msg[STATUS_MSG_LEN + 1] = { '\0' };
 static pthread_t tux_thread_id;
 static pthread_mutex_t tux_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  tux_cv = PTHREAD_COND_INITIALIZER;
-static cmd_t t_cmd = CMD_NONE;
+static volatile cmd_t t_cmd = CMD_NONE;
 static int32_t enter_room;      /* player has changed rooms        */
 static volatile int buttons_pressed;
 
@@ -218,10 +218,7 @@ static void* tux_thread(void * ignore){
 
     while (1) {
         pthread_mutex_lock(&tux_lock);
-        //buttons_pressed = get_bp();
-        //while (!(buttons_pressed)){
         pthread_cond_wait(&tux_cv, &tux_lock);
-        //}
         switch (t_cmd) {
         // update game state
             case CMD_UP:    move_photo_down();  break;
@@ -360,14 +357,13 @@ static game_condition_t game_loop() {
         display_time_on_tux(cur_time.tv_sec - start_time.tv_sec);
 
          // poll driver
-        t_cmd = CMD_NONE;
+        t_cmd = get_tcmd();
         //buttons_pressed = get_bp();
         // determine if button pressed
         pthread_mutex_lock(&tux_lock);
-        //if (buttons_pressed){
-        t_cmd = get_tcmd();
-        pthread_cond_signal(&tux_cv);
-        //}
+        if (t_cmd != CMD_NONE){
+            pthread_cond_signal(&tux_cv);
+        }
         pthread_mutex_unlock(&tux_lock);
 
 
@@ -541,7 +537,7 @@ static void init_game() {
     game_info.map_y = 0;
     game_info.x_speed = MOTION_SPEED;
     game_info.y_speed = MOTION_SPEED;
-    tux_init();
+
 }
 
 
