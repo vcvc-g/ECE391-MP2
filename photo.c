@@ -76,6 +76,18 @@ struct image_t {
 };
 
 
+/*
+ * A raw color from photo.
+ */
+struct color_t {
+    uint8_t        r;
+    uint8_t        g;
+    uint8_t        b;
+    int            c_count;
+    int            o_idx;
+};
+
+
 /* file-scope variables */
 
 /*
