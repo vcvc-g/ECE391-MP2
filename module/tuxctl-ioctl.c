@@ -45,7 +45,7 @@ static uint8_t hex_display(char hex, char dp_on);
  */
 void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
     unsigned a, b, c;
-    char opcode;
+    uint8_t opcode[2];
 
     a = packet[0]; /* Avoid printk() sign extending the 8-bit */
     b = packet[1]; /* values when printing them. */
@@ -58,10 +58,10 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
           hold = 0;
           break;
       case MTCP_RESET:
-          opcode = MTCP_LED_USR;
-          tuxctl_ldisc_put(tty, &opcode, 1);
-          opcode = MTCP_BIOC_ON;
-          tuxctl_ldisc_put(tty, &opcode, 1);
+          opcode[0] = MTCP_LED_USR;
+          //tuxctl_ldisc_put(tty, &opcode, 1);
+          opcode[1] = MTCP_BIOC_ON;
+          tuxctl_ldisc_put(tty, opcode, 2);
           if(hold == 0){
             hold = 1;
             set_led(tty, led_state);
@@ -192,7 +192,8 @@ void set_led(struct tty_struct* tty, unsigned long arg){
 int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
                  unsigned cmd, unsigned long arg) {
     uint8_t ini_buf[2];
-    unsigned char button_set[1];
+    uint8_t button_set[1];
+    unsigned long *ptr;
     switch (cmd) {
     /*Takes no arguments. Initializes any variables associated with the driver
        and returns 0. Assume that any user-level code that interacts with your
@@ -203,15 +204,17 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
             ini_buf[0] = MTCP_LED_USR;
             ini_buf[1] = MTCP_BIOC_ON;
             tuxctl_ldisc_put(tty, ini_buf, 2);
+            led_state = 0xF0FF0000;
             return 0;
     /*Takes a pointer to a 32-bit integer. Returns -EINVAL error if this pointer
     is not valid. Otherwise, sets the bits of the low byte corresponding to the
     currently pressed buttons */
         case TUX_BUTTONS:
-            if(arg == NULL) return -EINVAL;
+            ptr = (unsigned long *)arg;
+            if(ptr == NULL) return -EINVAL;
             button_set[0] = ((button_packet[1] & 0x0F) | ((button_packet[2]<<4) & 0xF0));
             //button info ready to send
-            copy_to_user((unsigned long *)arg, button_set, 1);
+            copy_to_user(ptr, button_set, 1);
             return 0;
     /*The argument is a 32-bit integer of the following form: The low 16-bits
       specify a number whose hexadecimal value is to be displayed on the 7-segment

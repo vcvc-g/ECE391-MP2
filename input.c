@@ -61,7 +61,7 @@
 #include "module/mtcp.h"
 
 /* set to 1 and compile this file by itself to test functionality */
-#define TEST_INPUT_DRIVER 1
+#define TEST_INPUT_DRIVER 0
 
 /* set to 1 to use tux controller; otherwise, uses keyboard input */
 #define USE_TUX_CONTROLLER 0
@@ -71,6 +71,8 @@
 static struct termios tio_orig;
 static int fd;
 static int buttons_pressed;
+volatile int button;
+volatile int prev_b;
 
 /*
  * init_input
@@ -352,35 +354,51 @@ int get_bp(){
 cmd_t get_tcmd(){
 
     cmd_t pushed = CMD_NONE;
-
-    int button;
+    prev_b = button;
     ioctl(fd, TUX_BUTTONS, &button);
 
     switch(button){
         //START
         case 0xFE:
             pushed = CMD_QUIT;
+            break;
         //A
         case 0xFD:
-            pushed = CMD_MOVE_LEFT;
+            if(prev_b == button)
+                pushed = CMD_NONE;
+            else
+                pushed = CMD_MOVE_LEFT;
+            break;
         //B
         case 0xFB:
-            pushed = CMD_ENTER;
+            if(prev_b == button)
+                pushed = CMD_NONE;
+            else
+                pushed = CMD_ENTER;
+            break;
         //C
         case 0xF7:
-            pushed = CMD_MOVE_RIGHT;
+            if(prev_b == button)
+                pushed = CMD_NONE;
+            else
+                pushed = CMD_RIGHT;
+            break;
         //UP
         case 0xEF:
             pushed = CMD_UP;
+            break;
         //LEFT
         case 0xDF:
             pushed = CMD_LEFT;
+            break;
         //DOWN
         case 0xBF:
             pushed = CMD_DOWN;
+            break;
         //RIGHT
         case 0x7F:
             pushed = CMD_RIGHT;
+            break;
     }
 
     if (pushed == CMD_NONE) {
@@ -419,12 +437,13 @@ int main() {
     init_input();
     while (1) {
 
-        while ((cmd = get_command()) == last_cmd);
+        //while ((cmd = get_command()) == last_cmd);
+        while ((cmd = get_tcmd()) == last_cmd);
         last_cmd = cmd;
         printf("command issued: %s\n", cmd_name[cmd]);
         if (cmd == CMD_QUIT)
             break;
-        display_time_on_tux(59);
+        display_time_on_tux(1);
     }
     shutdown_input();
     return 0;
