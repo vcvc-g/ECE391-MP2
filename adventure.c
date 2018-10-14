@@ -173,7 +173,9 @@ static char status_msg[STATUS_MSG_LEN + 1] = { '\0' };
 static pthread_t tux_thread_id;
 static pthread_mutex_t tux_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  tux_cv = PTHREAD_COND_INITIALIZER;
-
+static cmd_t buttons;
+static int32_t enter_room;      /* player has changed rooms        */
+static volatile int buttons_pressed;
 
 /*
  * cancel_status_thread
@@ -189,29 +191,46 @@ static void cancel_status_thread(void* ignore) {
 }
 
 
+/*
+ * tux_thread
+ *   DESCRIPTION:
+ *   INPUTS: none(ignored)
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: none
+ */
+void* tux_thread(void * ignore){
 
-
-
-void* tux_thread(void * arg){
-    int *bottons;
     while (1) {
         pthread_mutex_lock(&tux_lock);
-
-        tux_input(bottons);
-
-        while (!buttons_pressed){
+        buttons_pressed = get_bp();
+        while (!(buttons_pressed)){
             pthread_cond_wait(&tux_cv, &tux_lock);
         }
         switch (buttons) {
         // update game state
-            case 0x01:
+            case CMD_UP:    move_photo_down();  break;
+            case CMD_RIGHT: move_photo_left();  break;
+            case CMD_DOWN:  move_photo_up();    break;
+            case CMD_LEFT:  move_photo_right(); break;
+            case CMD_MOVE_LEFT:
+                enter_room = (TC_CHANGE_ROOM == try_to_move_left(&game_info.where));
                 break;
-            case :
+            case CMD_ENTER:
+                enter_room = (TC_CHANGE_ROOM == try_to_enter(&game_info.where));
                 break;
-
-            default:
+            case CMD_MOVE_RIGHT:
+                enter_room = (TC_CHANGE_ROOM == try_to_move_right(&game_info.where));
                 break;
+            case CMD_TYPED:
+                if (handle_typing()) {
+                    enter_room = 1;
+                }
+                break;
+            case CMD_QUIT: return GAME_QUIT;
+            default: break;
         }
+        buttons_pressed = 0;
         pthread_mutex_unlock(&tux_lock);
     }
     return NULL;
@@ -236,7 +255,6 @@ static game_condition_t game_loop() {
 
     struct timeval cur_time; /* current time(during tick)      */
     cmd_t cmd;               /* command issued by input control */
-    int32_t enter_room;      /* player has changed rooms        */
 
     /* Record the starting time--assume success. */
     (void)gettimeofday(&start_time, NULL);
@@ -323,6 +341,21 @@ static game_condition_t game_loop() {
          * Note that typed commands that move objects may cause the room
          * to be redrawn.
          */
+
+
+
+         // poll driver
+        buttons = get_tcmd();
+        buttons_pressed = get_bp();
+        // determine if button pressed
+        pthread_mutex_lock(&tux_lock);
+        if (buttons_pressed){
+            pthread_cond_signal(&tux_cv);
+        }
+        pthread_mutex_unlock(&tux_lock);
+
+
+
 
         cmd = get_command();
         switch (cmd) {

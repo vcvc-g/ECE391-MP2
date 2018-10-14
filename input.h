@@ -55,6 +55,12 @@ extern int init_input();
 /* Read a command from the input device. */
 extern cmd_t get_command();
 
+
+extern cmd_t get_tcmd();
+
+
+extern int get_bp();
+
 /* Get currently typed command string. */
 extern const char* get_typed_command();
 

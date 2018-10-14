@@ -70,6 +70,7 @@
 /* stores original terminal settings */
 static struct termios tio_orig;
 static int fd;
+static int buttons_pressed;
 
 /*
  * init_input
@@ -150,6 +151,8 @@ static void typed_a_char(char c) {
         typing[len + 1] = '\0';
     }
 }
+
+
 
 /*
  * get_command
@@ -341,12 +344,53 @@ void tux_init(){
     ioctl(fd,TUX_INIT);
 }
 
-
-void tux_input(int *tux_botton){
-    ioctl(fd, TUX_BUTTONS, tux_botton);
+int get_bp(){
+    return buttons_pressed;
 }
 
 
+cmd_t get_tcmd(){
+
+    cmd_t pushed = CMD_NONE;
+
+    int button;
+    ioctl(fd, TUX_BUTTONS, &button);
+
+    switch(button){
+        //START
+        case 0xFE:
+            pushed = CMD_QUIT;
+        //A
+        case 0xFD:
+            pushed = CMD_MOVE_LEFT;
+        //B
+        case 0xFB:
+            pushed = CMD_ENTER;
+        //C
+        case 0xF7:
+            pushed = CMD_MOVE_RIGHT;
+        //UP
+        case 0xEF:
+            pushed = CMD_UP;
+        //LEFT
+        case 0xDF:
+            pushed = CMD_LEFT;
+        //DOWN
+        case 0xBF:
+            pushed = CMD_DOWN;
+        //RIGHT
+        case 0x7F:
+            pushed = CMD_RIGHT;
+    }
+
+    if (pushed == CMD_NONE) {
+        buttons_pressed = 0;
+    }else{
+        buttons_pressed = 1;
+    }
+    return pushed;
+
+}
 
 
 
@@ -374,12 +418,13 @@ int main() {
 
     init_input();
     while (1) {
+
         while ((cmd = get_command()) == last_cmd);
         last_cmd = cmd;
         printf("command issued: %s\n", cmd_name[cmd]);
         if (cmd == CMD_QUIT)
             break;
-        display_time_on_tux(83);
+        display_time_on_tux(59);
     }
     shutdown_input();
     return 0;
