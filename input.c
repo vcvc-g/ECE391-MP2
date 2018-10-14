@@ -61,7 +61,7 @@
 #include "module/mtcp.h"
 
 /* set to 1 and compile this file by itself to test functionality */
-#define TEST_INPUT_DRIVER 0
+#define TEST_INPUT_DRIVER 1
 
 /* set to 1 to use tux controller; otherwise, uses keyboard input */
 #define USE_TUX_CONTROLLER 0
@@ -89,6 +89,10 @@ volatile int prev_b;
 int init_input() {
     struct termios tio_new;
 
+    fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY);
+    int ldsic_num = N_MOUSE;
+    ioctl(fd, TIOCSETD, &ldsic_num);
+    ioctl(fd,TUX_INIT,0x00);
 
     /*
      * Set non-blocking mode so that stdin can be read without blocking
@@ -359,45 +363,48 @@ cmd_t get_tcmd(){
 
     switch(button){
         //START
-        case 0xFE:
+        case (0xFE):
             pushed = CMD_QUIT;
             break;
         //A
-        case 0xFD:
+        case (0xFD):
             if(prev_b == button)
                 pushed = CMD_NONE;
             else
                 pushed = CMD_MOVE_LEFT;
             break;
         //B
-        case 0xFB:
+        case (0xFB):
             if(prev_b == button)
                 pushed = CMD_NONE;
             else
                 pushed = CMD_ENTER;
             break;
         //C
-        case 0xF7:
+        case (0xF7):
             if(prev_b == button)
                 pushed = CMD_NONE;
             else
-                pushed = CMD_RIGHT;
+                pushed = CMD_MOVE_RIGHT;
             break;
         //UP
-        case 0xEF:
+        case (0xEF):
             pushed = CMD_UP;
             break;
         //LEFT
-        case 0xDF:
+        case (0xDF):
             pushed = CMD_LEFT;
             break;
         //DOWN
-        case 0xBF:
+        case (0xBF):
             pushed = CMD_DOWN;
             break;
         //RIGHT
-        case 0x7F:
+        case (0x7F):
             pushed = CMD_RIGHT;
+            break;
+        default:
+            pushed = CMD_NONE;
             break;
     }
 
@@ -414,12 +421,6 @@ cmd_t get_tcmd(){
 
 #if (TEST_INPUT_DRIVER == 1)
 int main() {
-
-
-    fd = open("/dev/ttyS0", O_RDWR | O_NOCTTY);
-    int ldsic_num = N_MOUSE;
-    ioctl(fd, TIOCSETD, &ldsic_num);
-    ioctl(fd,TUX_INIT);
 
     cmd_t last_cmd = CMD_NONE;
     cmd_t cmd;

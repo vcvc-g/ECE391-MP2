@@ -205,6 +205,7 @@ int tuxctl_ioctl(struct tty_struct* tty, struct file* file,
             ini_buf[1] = MTCP_BIOC_ON;
             tuxctl_ldisc_put(tty, ini_buf, 2);
             led_state = 0xF0FF0000;
+            set_led(tty,led_state);
             return 0;
     /*Takes a pointer to a 32-bit integer. Returns -EINVAL error if this pointer
     is not valid. Otherwise, sets the bits of the low byte corresponding to the

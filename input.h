@@ -58,6 +58,7 @@ extern cmd_t get_command();
 
 extern cmd_t get_tcmd();
 
+extern void tux_init();
 
 extern int get_bp();
 

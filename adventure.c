@@ -134,6 +134,7 @@ static const typed_cmd_t cmd_list[] = {
 /* local functions--see function headers for details */
 
 static void cancel_status_thread(void* ignore);
+static void cancel_tux_thread(void* ignore);
 static game_condition_t game_loop(void);
 static int32_t handle_typing(void);
 static void init_game(void);
@@ -190,6 +191,20 @@ static void cancel_status_thread(void* ignore) {
     (void)pthread_cancel(status_thread_id);
 }
 
+/*
+ * cancel_tux_thread
+ *   DESCRIPTION: Terminates the status message helper thread.  Used as
+ *                a cleanup method to ensure proper shutdown.
+ *   INPUTS: none(ignored)
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: none
+ */
+static void cancel_tux_thread(void* ignore) {
+    (void)pthread_cancel(tux_thread_id);
+}
+
+
 
 /*
  * tux_thread
@@ -199,7 +214,7 @@ static void cancel_status_thread(void* ignore) {
  *   RETURN VALUE: none
  *   SIDE EFFECTS: none
  */
-void* tux_thread(void * ignore){
+static void* tux_thread(void * ignore){
 
     while (1) {
         pthread_mutex_lock(&tux_lock);
@@ -342,7 +357,7 @@ static game_condition_t game_loop() {
          * to be redrawn.
          */
 
-        display_time_on_tux(cur_time.tv_sec);
+        display_time_on_tux(cur_time.tv_sec - start_time.tv_sec);
 
          // poll driver
         t_cmd = CMD_NONE;
@@ -526,6 +541,7 @@ static void init_game() {
     game_info.map_y = 0;
     game_info.x_speed = MOTION_SPEED;
     game_info.y_speed = MOTION_SPEED;
+    tux_init();
 }
 
 
@@ -808,7 +824,8 @@ int main() {
     if (0 != pthread_create(&tux_thread_id, NULL, tux_thread, NULL)) {
         PANIC("failed to create status thread");
     }
-    push_cleanup(cancel_status_thread, NULL);
+    push_cleanup(cancel_tux_thread, NULL);
+
 
     /* Start mode X. */
     if (0 != set_mode_X(fill_horiz_buffer, fill_vert_buffer)) {
@@ -824,6 +841,7 @@ int main() {
 
     game = game_loop();
 
+    pop_cleanup(1);
     pop_cleanup(1);
     pop_cleanup(1);
     pop_cleanup(1);
