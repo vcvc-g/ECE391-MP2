@@ -80,9 +80,9 @@ struct image_t {
  * A raw color from photo.
  */
 struct color_t {
-    uint16_t        r;
-    uint16_t        g;
-    uint16_t        b;
+    int        r;
+    int        g;
+    int        b;
     int            c_count;
     int            o_idx;
 };
@@ -513,17 +513,24 @@ photo_t* read_photo(const char* fname) {
             cb = ((pixel << 1) & 0x3E);   // 6 bit B of current pixel
 
 
-            layer4[idx_4].r = cr;
-            layer4[idx_4].g = cg;
-            layer4[idx_4].b = cb;
+            layer4[idx_4].r += cr;
+            layer4[idx_4].g += cg;
+            layer4[idx_4].b += cb;
             layer4[idx_4].c_count += 1;
             layer4[idx_4].o_idx = idx_4;
+
+            idx_2 = (((pixel >> 14) << 4) | (((pixel >> 9) & 0x03) <<2 ) | ((pixel >> 3) & 0x03));
+            layer2[idx_2].r += cr;
+            layer2[idx_2].g += cg;
+            layer2[idx_2].b += cb;
+            layer2[idx_2].c_count += 1;
+            layer2[idx_2].o_idx = 0;
 
         }
     }
     //OUT IMAGE Pixel
 
-
+/*
     //move rgb sum to layer2
     for(i = 0; i < 4096; i++){
         idx_2 = i/64;
@@ -533,7 +540,7 @@ photo_t* read_photo(const char* fname) {
         layer2[idx_2].c_count += layer4[i].c_count;
 
     }
-
+*/
     //sort layer4 by color count
     qsort((void*)layer4 ,4096,sizeof(struct color_t),l4_comp);
 
@@ -551,18 +558,18 @@ photo_t* read_photo(const char* fname) {
         //avg first 128 layer4 rgb and put in palette
 
         if(layer4[i].c_count > 0){
-            p->palette[i][0] = layer4[i].r;
-            p->palette[i][1] = layer4[i].g;
-            p->palette[i][2] = layer4[i].b;
+            p->palette[i][0] = layer4[i].r/layer4[i].c_count;
+            p->palette[i][1] = layer4[i].g/layer4[i].c_count;
+            p->palette[i][2] = layer4[i].b/layer4[i].c_count;
         }
     }
 
     for(i = 0; i < 64; i++){
         //avg first 128 layer4 rgb and put in palette
         if(layer2[i].c_count > 0){
-            p->palette[128+i][0] = (layer2[i].r);
-            p->palette[128+i][1] = (layer2[i].g);
-            p->palette[128+i][2] = (layer2[i].b);
+            p->palette[128+i][0] = (layer2[i].r)/layer2[i].c_count;
+            p->palette[128+i][1] = (layer2[i].g)/layer2[i].c_count;
+            p->palette[128+i][2] = (layer2[i].b)/layer2[i].c_count;
         }
     }
 
@@ -584,21 +591,9 @@ photo_t* read_photo(const char* fname) {
             }
 
 
-            pixelR = (pixel>>11) & 0x01F; //5bit R
-            pixelG = (pixel>>5) & 0x03F;  //6bit G
-            pixelB = pixel & 0x01F;       //5bit B
-
-            for(i = 0; i < 128; i++){
-                // 6 bit layer4 palette R/G/B value
-                palR = p->palette[i][0];
-                palG = p->palette[i][1];
-                palB = p->palette[i][2];
-                //compare front 4 MSB
-                if((palR>>2==pixelR>>1)&&(palG>>2==pixelG>>2)&&(palB>>2==pixelB>>1)){
-                    p->img[p->hdr.width * y + x] = i+64;
-                }
-            }
-
+            pixelR = ((pixel >> 10) & 0x3E);    // 6 bit R of current pixel
+            pixelG = ((pixel >> 5) & 0x3F);    // 6 bit G of current pixel
+            pixelB = ((pixel << 1) & 0x3E);
 
             for(i = 128; i < 192; i++){
                 // 6 bit layer2 palette R/G/B value
@@ -606,10 +601,25 @@ photo_t* read_photo(const char* fname) {
                 palG = p->palette[i][1];
                 palB = p->palette[i][2];
                 //compare front 2 MSB
-                if((palR>>4==pixelR>>3)&&(palG>>4==pixelG>>4)&&(palB>>4==pixelB>>3)){
+                if((palR>>4==pixelR>>4)&&(palG>>4==pixelG>>4)&&(palB>>4==pixelB>>4)){
                     p->img[p->hdr.width * y + x] = i+64;
                 }
             }
+
+
+            for(i = 0; i < 128; i++){
+                // 6 bit layer4 palette R/G/B value
+                palR = p->palette[i][0];
+                palG = p->palette[i][1];
+                palB = p->palette[i][2];
+                //compare front 4 MSB
+                if((palR>>2==pixelR>>2)&&(palG>>2==pixelG>>2)&&(palB>>2==pixelB>>2)){
+                    p->img[p->hdr.width * y + x] = i+64;
+                }
+            }
+
+
+
 
         }
     }
