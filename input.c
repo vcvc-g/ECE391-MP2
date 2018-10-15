@@ -328,28 +328,40 @@ unsigned long display_value;
 unsigned long dig1, dig2, dig3, dig4;
 unsigned long second, mins;
 
-second = num_seconds%60;
-mins = num_seconds/60;
+second = num_seconds%60; //get second by mod 60
+mins = num_seconds/60;   //get mins by devide 60
 
-if(mins < 10) display_value = 0x04070000;
-else display_value = 0x040F0000;
+if(mins < 10) display_value = 0x04070000; //led on for first 3 led
+else display_value = 0x040F0000;  //led on for all 4 led
 
 dig1 = mins/10;
 dig2 = mins%10;
 dig3 = second/10;
 dig4 = second%10;
-
+// left shift 12 dig1, left shift 8 dig2, left shift 4 dig3
 display_value |= (dig1 <<12) | (dig2 <<8) | (dig3 <<4) | dig4;
 
 ioctl(fd, TUX_SET_LED, display_value);
 
 }
 
-
+/*
+ * tux_init
+ *   DESCRIPTION: initialize tux
+ *   INPUTS: none
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ */
 void tux_init(){
     ioctl(fd,TUX_INIT);
 }
 
+/*
+ * get_bp
+ *   DESCRIPTION: return buttons_pressed value
+ *   INPUTS: none
+ *   RETURN VALUE: int buttons_pressed
+ */
 int get_bp(){
     return buttons_pressed;
 }
@@ -362,44 +374,44 @@ cmd_t get_tcmd(){
     ioctl(fd, TUX_BUTTONS, &button);
 
     switch(button){
-        //START
+        //0xFE mask for START
         case (0xFE):
-            pushed = CMD_QUIT;
+            pushed = CMD_NONE;
             break;
-        //A
+        //0xFD mask for A
         case (0xFD):
             if(prev_b == button)
                 pushed = CMD_NONE;
             else
                 pushed = CMD_MOVE_LEFT;
             break;
-        //B
+        //0xFB mask for B
         case (0xFB):
             if(prev_b == button)
                 pushed = CMD_NONE;
             else
                 pushed = CMD_ENTER;
             break;
-        //C
+        //0xF7 mask for C
         case (0xF7):
             if(prev_b == button)
                 pushed = CMD_NONE;
             else
                 pushed = CMD_MOVE_RIGHT;
             break;
-        //UP
+        //0xEF mask for UP
         case (0xEF):
             pushed = CMD_UP;
             break;
-        //LEFT
+        //0xDF mask for LEFT
         case (0xDF):
             pushed = CMD_LEFT;
             break;
-        //DOWN
+        //0xBF mask for DOWN
         case (0xBF):
             pushed = CMD_DOWN;
             break;
-        //RIGHT
+        //0x7F mask for RIGHT
         case (0x7F):
             pushed = CMD_RIGHT;
             break;

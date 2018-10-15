@@ -44,6 +44,15 @@
 #include "photo_headers.h"
 #include "world.h"
 
+#define paletteOffset 64
+#define layer2Size 64
+#define layer4Size 4096
+#define palette128 128
+#define palette192 192
+#define R 0
+#define G 1
+#define B 2
+
 
 /* types local to this file(declared in types.h) */
 
@@ -80,16 +89,16 @@ struct image_t {
  * A raw color from photo.
  */
 struct color_t {
-    int        r;
-    int        g;
-    int        b;
-    int            c_count;
-    int            o_idx;
+    int        r;             //red
+    int        g;             //green
+    int        b;             //blue
+    int            c_count;   //color occurance
+    int            o_idx;     //idx before sort
 };
 
 
 
-int l4_comp(const void *p, const void *q);
+int l4_comp(const void *p, const void *q);    //comparator for sort
 
 
 
@@ -420,19 +429,20 @@ photo_t* read_photo(const char* fname) {
     uint16_t y;        /* index over image rows    */
     uint16_t pixel;    /* one pixel from the file  */
 
-    struct color_t layer2[64];
-    struct color_t layer4[4096];
+    struct color_t layer2[layer2Size];
+    struct color_t layer4[layer4Size];
     uint16_t        cr, cg, cb, pixelR , pixelG ,pixelB, palR, palG, palB;
     int idx_2, idx_4, i_sort;
     int idx_i, i;      //loop index
+    unsigned int decode_r, decode_g, decode_b;
 
     //layer4 initialization
     struct color_t p_color = {.r = 0, .g = 0, .b = 0, .c_count = 0, .o_idx = 0};
-    for(idx_i = 0; idx_i < 4096; idx_i++){
+    for(idx_i = 0; idx_i < layer4Size; idx_i++){
         layer4[idx_i] = p_color;
     }
     //layer2 initialization
-    for(idx_i = 0; idx_i < 64; idx_i++){
+    for(idx_i = 0; idx_i < layer2Size; idx_i++){
         layer2[idx_i] = p_color;
     }
 
@@ -506,11 +516,16 @@ photo_t* read_photo(const char* fname) {
 
             ///EACH Pixel IN CURENT IMAGE
             // Current color idx in layer 4
+            //RIGHT 12 THEN LEFT SHIFT 8 GET 4 MSB R AT IDX 8,9,10,11
+            //RIGHT 3 MASK 0XF0  GET 4 MSB R AT IDX 4,5,6,7
+            //RIGHT 1 MASK 0X0F GET 4 MSB R AT IDX 0,1,2,3
+            //RRRRGGGGBBBB
             idx_4 = (((pixel >> 12) << 8) | ((pixel >> 3) & 0x0F0) | ((pixel >> 1) & 0x0F));
 
-            cr = ((pixel >> 10) & 0x3E);    // 6 bit R of current pixel
-            cg = ((pixel >> 5) & 0x3F);    // 6 bit G of current pixel
-            cb = ((pixel << 1) & 0x3E);   // 6 bit B of current pixel
+
+            cr = ((pixel >> 10) & 0x3E);    //RIGHT SHIFT 10 MASK 0X3E GET 6 bit R of current pixel
+            cg = ((pixel >> 5) & 0x3F);    //RIGHT SHIFT 5 MASK 0X3F GET 6 bit G of current pixel
+            cb = ((pixel << 1) & 0x3E);   //RIGHT SHIFT 1 MASK 0X3E GET 6 bit B of current pixel
 
 
             layer4[idx_4].r += cr;
@@ -519,6 +534,11 @@ photo_t* read_photo(const char* fname) {
             layer4[idx_4].c_count += 1;
             layer4[idx_4].o_idx = idx_4;
 
+            //Current color idx in layer 2
+            //RIGHT 14 THEN LEFT SHIFT 4 GET 2 MSB R AT IDX 4,5
+            //RIGHT 9 MASK 0X03 THEN LEFT SHIFT 2 GET 2 MSB R AT IDX 2,3
+            //RIGHT 3 THEN MASK 0X03 GET 2 MSB R AT IDX 0,1
+            //RRGGBB
             idx_2 = (((pixel >> 14) << 4) | (((pixel >> 9) & 0x03) <<2 ) | ((pixel >> 3) & 0x03));
             layer2[idx_2].r += cr;
             layer2[idx_2].g += cg;
@@ -542,15 +562,23 @@ photo_t* read_photo(const char* fname) {
     }
 */
     //sort layer4 by color count
-    qsort((void*)layer4 ,4096,sizeof(struct color_t),l4_comp);
+    qsort((void*)layer4 ,layer4Size,sizeof(struct color_t),l4_comp);
 
     //move rgb sum to layer2
 
 
-    for(i = 0; i < 128; i++){
+    for(i = 0; i < palette128; i++){
 
         //mins first 128 layer4 rgb from layer2
-        i_sort = layer4[i].o_idx/64;
+        i_sort = layer4[i].o_idx;
+
+        decode_r=(i_sort>>10)& 0x03; //RIGHT SHIFT 10 MASK WITH 0X03 GET 2 BIT R
+		    decode_g=(i_sort>>6)& 0x03; //RIGHT SHIFT 6 MASK WITH 0X03 GET 2 BIT G
+		    decode_b=(i_sort>>2)& 0x03; //RIGHT SHIFT 2 MASK WITH 0X03 GET 2 BIT B
+		    i_sort=0;
+        //INDED I_SORT IN FORMAT RRGGBB
+		    i_sort=(decode_r<<4)+(decode_g<<2)+(decode_b);
+
         layer2[i_sort].r -= layer4[i].r;
         layer2[i_sort].g -= layer4[i].g;
         layer2[i_sort].b -= layer4[i].b;
@@ -558,18 +586,18 @@ photo_t* read_photo(const char* fname) {
         //avg first 128 layer4 rgb and put in palette
 
         if(layer4[i].c_count > 0){
-            p->palette[i][0] = layer4[i].r/layer4[i].c_count;
-            p->palette[i][1] = layer4[i].g/layer4[i].c_count;
-            p->palette[i][2] = layer4[i].b/layer4[i].c_count;
+            p->palette[i][R] = layer4[i].r/layer4[i].c_count;
+            p->palette[i][G] = layer4[i].g/layer4[i].c_count;
+            p->palette[i][B] = layer4[i].b/layer4[i].c_count;
         }
     }
 
-    for(i = 0; i < 64; i++){
+    for(i = 0; i < layer2Size; i++){
         //avg first 128 layer4 rgb and put in palette
         if(layer2[i].c_count > 0){
-            p->palette[128+i][0] = (layer2[i].r)/layer2[i].c_count;
-            p->palette[128+i][1] = (layer2[i].g)/layer2[i].c_count;
-            p->palette[128+i][2] = (layer2[i].b)/layer2[i].c_count;
+            p->palette[palette128+i][R] = (layer2[i].r)/layer2[i].c_count;
+            p->palette[palette128+i][G] = (layer2[i].g)/layer2[i].c_count;
+            p->palette[palette128+i][B] = (layer2[i].b)/layer2[i].c_count;
         }
     }
 
@@ -591,30 +619,30 @@ photo_t* read_photo(const char* fname) {
             }
 
 
-            pixelR = ((pixel >> 10) & 0x3E);    // 6 bit R of current pixel
-            pixelG = ((pixel >> 5) & 0x3F);    // 6 bit G of current pixel
-            pixelB = ((pixel << 1) & 0x3E);
+            pixelR = ((pixel >> 10) & 0x3E);    // RIGHT SHIFT 10 MASK WITH 0X3E 6 bit R of current pixel
+            pixelG = ((pixel >> 5) & 0x3F);    // RIGHT SHIFT 5 MASK WITH 0X3F 6 bit G of current pixel
+            pixelB = ((pixel << 1) & 0x3E);   // RIGHT SHIFT 1 MASK WITH 0X3E 6 bit b of current pixel
 
-            for(i = 128; i < 192; i++){
+            for(i = palette128; i < palette192; i++){
                 // 6 bit layer2 palette R/G/B value
-                palR = p->palette[i][0];
-                palG = p->palette[i][1];
-                palB = p->palette[i][2];
+                palR = p->palette[i][R];
+                palG = p->palette[i][G];
+                palB = p->palette[i][B];
                 //compare front 2 MSB
                 if((palR>>4==pixelR>>4)&&(palG>>4==pixelG>>4)&&(palB>>4==pixelB>>4)){
-                    p->img[p->hdr.width * y + x] = i+64;
+                    p->img[p->hdr.width * y + x] = i+paletteOffset;
                 }
             }
 
 
-            for(i = 0; i < 128; i++){
+            for(i = 0; i < palette128; i++){
                 // 6 bit layer4 palette R/G/B value
-                palR = p->palette[i][0];
-                palG = p->palette[i][1];
-                palB = p->palette[i][2];
+                palR = p->palette[i][R];
+                palG = p->palette[i][G];
+                palB = p->palette[i][B];
                 //compare front 4 MSB
                 if((palR>>2==pixelR>>2)&&(palG>>2==pixelG>>2)&&(palB>>2==pixelB>>2)){
-                    p->img[p->hdr.width * y + x] = i+64;
+                    p->img[p->hdr.width * y + x] = i+paletteOffset;
                 }
             }
 
@@ -630,7 +658,12 @@ photo_t* read_photo(const char* fname) {
 }
 
 
-
+/*
+ * l4_comp
+ *   DESCRIPTION: COMPARATOR FOR SORT, DESENDING ORDER
+ *   INPUTS: const void *p, const void *q
+ *   RETURN VALUE: int buttons_pressed
+ */
 int l4_comp(const void *p, const void *q)
 {
     int l = ((struct color_t *)p)->c_count;

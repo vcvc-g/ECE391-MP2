@@ -75,104 +75,125 @@ void tuxctl_handle_packet (struct tty_struct* tty, unsigned char* packet) {
     /*printk("packet : %x %x %x\n", a, b, c); */
 }
 
-
+/*
+ * mtcp_reset
+ *   DESCRIPTION: it will reset the tux and restore last led state
+ *   INPUTS: struct tty_struct* tty
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ */
 void mtcp_reset(struct tty_struct* tty){
-    uint8_t opcode[2];
-    opcode[0] = MTCP_LED_USR;
-    //tuxctl_ldisc_put(tty, &opcode, 1);
-    opcode[1] = MTCP_BIOC_ON;
-    tuxctl_ldisc_put(tty, opcode, 2);
+    uint8_t opcode[2];        //opcode array for 2 opcode
+    opcode[0] = MTCP_LED_USR; //fill in 1st opcode 0
+    opcode[1] = MTCP_BIOC_ON; //fill in 2nd opcode 1
+    tuxctl_ldisc_put(tty, opcode, 2); //put 2 opcode on tux
 
-    set_led(tty, led_state);
+    set_led(tty, led_state);   //set led last state
     return;
 }
 
+/*
+ * mtcp_reset
+ *   DESCRIPTION: it will translate the input hex value to LED display
+ *   base on the given hex and decimal point indicator
+ *   INPUTS: char hex, char dp_on
+ *   OUTPUTS: none
+ *   RETURN VALUE: HEX display on 7 segment LED
+ */
   uint8_t hex_display(char hex, char dp_on){
       uint8_t led_byte;
       switch (hex){
-          case 0x0:
-              led_byte = 0xE7;
+          case 0x0: //HEX 0X0
+              led_byte = 0xE7; //7segment display
               break;
-          case 0x1:
-              led_byte = 0x06;
+          case 0x1: //HEX 0X1
+              led_byte = 0x06; //7segment display
               break;
-          case 0x2:
-              led_byte = 0xCB;
+          case 0x2: //HEX 0X2
+              led_byte = 0xCB; //7segment display
               break;
-          case 0x3:
-              led_byte = 0x8F;
+          case 0x3: //HEX 0X3
+              led_byte = 0x8F; //7segment display
               break;
-          case 0x4:
-              led_byte = 0x2E;
+          case 0x4: //HEX 0X4
+              led_byte = 0x2E; //7segment display
               break;
-          case 0x5:
-              led_byte = 0xAD;
+          case 0x5: //HEX 0X5
+              led_byte = 0xAD; //7segment display
               break;
-          case 0x6:
-              led_byte = 0xED;
+          case 0x6: //HEX 0X6
+              led_byte = 0xED; //7segment display
               break;
-          case 0x7:
-              led_byte = 0x86;
+          case 0x7: //HEX 0X7
+              led_byte = 0x86; //7segment display
               break;
-          case 0x8:
-              led_byte = 0xEF;
+          case 0x8: //HEX 0X8
+              led_byte = 0xEF; //7segment display
               break;
-          case 0x9:
-              led_byte = 0xAF;
+          case 0x9: //HEX 0X9
+              led_byte = 0xAF; //7segment display
               break;
-          case 0xA:
-              led_byte = 0xEE;
+          case 0xA: //HEX 0XA
+              led_byte = 0xEE; //7segment display
               break;
-          case 0xB:
+          case 0xB: //HEX 0XB
               led_byte = 0x6D; // b:0x6D B:0xEF
               break;
-          case 0xC:
-              led_byte = 0xE1;
+          case 0xC: //HEX 0XC
+              led_byte = 0xE1; //7segment display
               break;
-          case 0xD:
+          case 0xD: //HEX 0XD
               led_byte = 0x4F; // d:0x4F D:0xE7
               break;
-          case 0xE:
-              led_byte = 0xE9;
+          case 0xE: //HEX 0XE
+              led_byte = 0xE9; //7segment display
               break;
-          case 0xF:
-              led_byte = 0xE8;
+          case 0xF: //HEX 0XF
+              led_byte = 0xE8; //7segment display
               break;
-          default:
+          default:  //default case
               return 0;
       }
       if(dp_on){
-          led_byte += 0x10;
+          led_byte += 0x10; // light up dp by adding 0x10 to hex display
       }
       return led_byte;
 }
 
+
+/*
+ * set_led
+ *   DESCRIPTION: it will set LED base on given arg
+ *   INPUTS: struct tty_struct* tty, unsigned long arg
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ */
 void set_led(struct tty_struct* tty, unsigned long arg){
     char led_on, led_mask, led_dp, cur_led, cur_dp, cur_hex;
-    uint8_t led_buf[6];
+    uint8_t led_buf[6];   //tux commands sending array, 6 commands at most
     unsigned long hex_arg, hex_mask;
     int i, buf_idx;
 
     hex_arg = arg;
 
-    led_buf[0] = MTCP_LED_SET;
-    led_on = (arg >> 16) & 0x0F;
-    led_buf[1] = led_on;
-    led_dp = (arg >> 24) & 0x0F;
+    led_buf[0] = MTCP_LED_SET;   //LED_SET opcode at command array index 0
+    led_on = (arg >> 16) & 0x0F; //right shift arg 16 bits then bit operation with mask get which led is on
+    led_buf[1] = led_on;         //LED_on/off at command array index 1
+    led_dp = (arg >> 24) & 0x0F; //right shift arg 24 bits then bit operation with mask get which decimal point on
 
-    led_mask = 0x01;
-    hex_mask = 0x000F;
-    buf_idx = 2;
-    for(i = 0; i < 4; i++){
+    led_mask = 0x01;    //mask for last 1 bit
+    hex_mask = 0x000F;  //mask for last 4 bit
+    buf_idx = 2;        //command array offset by 2
+    for(i = 0; i < 4; i++){ //loop for checking 4 led on/ff
         cur_led = led_on & led_mask;
-        if(cur_led == led_mask){
+        if(cur_led == led_mask){  // if led on
             cur_dp = led_dp & led_mask;
             cur_hex =(char)(hex_arg & hex_mask);
             led_buf[buf_idx] = hex_display(cur_hex, cur_dp);
-            buf_idx += 1;
+            buf_idx += 1; // add this on led info to command array and CA length +1
         }
-        led_mask <<= 1;
-        hex_arg >>= 4;
+        led_mask <<= 1;   // left shift 1 bit check next led on off
+        hex_arg >>= 4;    // right shift 4 bit ready for next hex info
     }
     if(hold ==1){
         return 0;
@@ -185,17 +206,35 @@ void set_led(struct tty_struct* tty, unsigned long arg){
 
   }
 
+
+  /*
+   * tux_init
+   *   DESCRIPTION: it Initializes the tux, set led to 0
+   *   INPUTS: struct tty_struct* tty
+   *   OUTPUTS: none
+   *   RETURN VALUE: none
+   */
 void tux_init(struct tty_struct* tty){
-      uint8_t ini_buf[2];
+      uint8_t ini_buf[2]; //command array for 2 opcode
       hold = 1;
-      ini_buf[0] = MTCP_LED_USR;
-      ini_buf[1] = MTCP_BIOC_ON;
-      tuxctl_ldisc_put(tty, ini_buf, 2);
+      ini_buf[0] = MTCP_LED_USR; //MTCP_LED_USR opcode at CA idx 0
+      ini_buf[1] = MTCP_BIOC_ON; //MTCP_BIOC_ON opcode at CA idx 1
+      tuxctl_ldisc_put(tty, ini_buf, 2); //put CA with size 2
+      led_state = 0xFFFF0000;  // led stae for 0000
+      set_led(tty, led_state);
       return;
 }
 
+
+/*
+ * tux_buttons
+ *   DESCRIPTION: it pack up the lastest button info and copy to user
+ *   INPUTS: struct tty_struct* tty, unsigned long arg
+ *   OUTPUTS: none
+ *   RETURN VALUE: 0 if success, -EINVAL if failed
+ */
 int tux_buttons(struct tty_struct* tty, unsigned long arg){
-      uint8_t button_set[1];
+      uint8_t button_set[1];  //button packet of size 1
       unsigned long *ptr;
 
       ptr = (unsigned long *)arg;
@@ -203,6 +242,8 @@ int tux_buttons(struct tty_struct* tty, unsigned long arg){
           return -EINVAL;
       }
       spin_lock_irq(&button_lock);
+      //button packt 1 mask last 4 bit(0x0F) and button packt 2 left shift 4 bit then mask first 4 bit(0xF0)
+      //button set :  right down left up C B A S
       button_set[0] = ((button_packet[1] & 0x0F) | ((button_packet[2]<<4) & 0xF0));
       //button info ready to send
       copy_to_user(ptr, button_set, 1);
