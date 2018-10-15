@@ -80,12 +80,17 @@ struct image_t {
  * A raw color from photo.
  */
 struct color_t {
-    uint8_t        r;
-    uint8_t        g;
-    uint8_t        b;
+    uint16_t        r;
+    uint16_t        g;
+    uint16_t        b;
     int            c_count;
     int            o_idx;
 };
+
+
+
+
+
 
 
 /* file-scope variables */
@@ -410,6 +415,22 @@ photo_t* read_photo(const char* fname) {
     uint16_t y;        /* index over image rows    */
     uint16_t pixel;    /* one pixel from the file  */
 
+    color_t layer2[64];
+    color_t layer4[4096];
+    uint16_t        cr, cg, cb;
+    int idx_2, idx_4, i_sort;
+    int idx_i, i;      //loop index
+
+    //layer4 initialization
+    struct color_t p_color = {.r = 0, .g = 0, .b = 0, c_count = 0, o_idx = 0};
+    for(idx_i = 0; idx_i < 4096; idx_i++){
+        layer4[idx_i] = p_color;
+    }
+    //layer2 initialization
+    for(idx_i = 0; idx_i < 64; idx_i++){
+        layer2[idx_i] = p_color;
+    }
+
     /*
      * Open the file, allocate the structure, read the header, do some
      * sanity checks on it, and allocate space to hold the photo pixels.
@@ -466,11 +487,85 @@ photo_t* read_photo(const char* fname) {
              * the game puts up a photo, you should then change the palette
              * to match the colors needed for that photo.
              */
-            p->img[p->hdr.width * y + x] = (((pixel >> 14) << 4) | (((pixel >> 9) & 0x3) << 2) | ((pixel >> 3) & 0x3));
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            //p->img[p->hdr.width * y + x] = (((pixel >> 14) << 4) | (((pixel >> 9) & 0x3) << 2) | ((pixel >> 3) & 0x3));
+            /////////////////////////////////////////////////////////////////////////////////////////////////
+            /*
+            struct color_t {
+                uint16_t        r, g, b;
+                int            c_count;
+                int            o_idx;
+            };
+            */
+
+
+            ///EACH Pixel IN CURENT IMAGE
+            // Current color idx in layer 4
+            idx_4 = (((pixel >> 12) << 8) | (((pixel >> 7) & 0x0F) << 4) | ((pixel >> 1) & 0x0F));
+
+            cr = ((pixel >> 10) & 0x3E);    // 6 bit R of current pixel
+            cg = ((pixel >> 5) & 0x3E);    // 6 bit G of current pixel
+            cb = ((pixel << 1) & 0x3E);   // 6 bit B of current pixel
+
+            layer4[idx_4].r += cr;
+            layer4[idx_4].g += cg;
+            layer4[idx_4].b += cb;
+            layer4[idx_4].c_count += 1;
+            layer4[idx_4].o_idx = idx_4;
+
         }
     }
+    //OUT IMAGE Pixel
+
+    //move rgb sum to layer2
+    for(i = 0; i < 4096; i++){
+        idx_2 = i/64;
+        layer2[idx_2].r += layer4[i].r;
+        layer2[idx_2].g += layer4[i].g;
+        layer2[idx_2].b += layer4[i].b;
+        layer2[idx_2].c_count += layer4[i].c_count;
+
+    }
+    //sort layer4 by color count
+    qsort((void*)layer4 ,4096,sizeof(layer4[0]),l4_comp);
+
+    for(i = 0; i < 128; i++){
+        //mins first 128 layer4 rgb from layer2
+        i_sort = layer4[i].o_idx/64;
+        layer2[i_sort].r -= layer4[i].r;
+        layer2[i_sort].g -= layer4[i].g;
+        layer2[i_sort].b -= layer4[i].b;
+        layer2[i_sort].c_count -= layer4[i].c_count;
+        //avg first 128 layer4 rgb and put in palette
+        if(layer4[i].c_count > 0){
+            p.palette[i][0] = layer4[i].r/layer4[i].c_count;
+            p.palette[i][1] = layer4[i].g/layer4[i].c_count;
+            p.palette[i][2] = layer4[i].b/layer4[i].c_count;
+        }
+    }
+
+    for(i = 0; i < 64; i++){
+        //avg first 128 layer4 rgb and put in palette
+        if(layer2[i].c_count > 0){
+            p.palette[128+i][0] = layer2[i].r/layer2[i].c_count;
+            p.palette[128+i][1] = layer2[i].g/layer2[i].c_count;
+            p.palette[128+i][2] = layer2[i].b/layer2[i].c_count;
+        }
+    }
+
+
+
 
     /* All done.  Return success. */
     (void)fclose(in);
     return p;
+}
+
+
+
+int l4_comp(const void *p, const void *q)
+{
+    int l = ((struct color_t *)p)->c_count;
+    int r = ((struct color_t *)q)->c_count;
+    return (r - l);
 }
