@@ -527,9 +527,9 @@ photo_t* read_photo(const char* fname) {
     //move rgb sum to layer2
     for(i = 0; i < 4096; i++){
         idx_2 = i/64;
-        layer2[idx_2].r += layer4[i].r*layer4[i].c_count;
-        layer2[idx_2].g += layer4[i].g*layer4[i].c_count;
-        layer2[idx_2].b += layer4[i].b*layer4[i].c_count;
+        layer2[idx_2].r += layer4[i].r;
+        layer2[idx_2].g += layer4[i].g;
+        layer2[idx_2].b += layer4[i].b;
         layer2[idx_2].c_count += layer4[i].c_count;
 
     }
@@ -544,9 +544,9 @@ photo_t* read_photo(const char* fname) {
 
         //mins first 128 layer4 rgb from layer2
         i_sort = layer4[i].o_idx/64;
-        layer2[i_sort].r -= layer4[i].r ;
-        layer2[i_sort].g -= layer4[i].g ;
-        layer2[i_sort].b -= layer4[i].b ;
+        layer2[i_sort].r -= layer4[i].r;
+        layer2[i_sort].g -= layer4[i].g;
+        layer2[i_sort].b -= layer4[i].b;
         layer2[i_sort].c_count -= layer4[i].c_count;
         //avg first 128 layer4 rgb and put in palette
 
@@ -560,9 +560,9 @@ photo_t* read_photo(const char* fname) {
     for(i = 0; i < 64; i++){
         //avg first 128 layer4 rgb and put in palette
         if(layer2[i].c_count > 0){
-            p->palette[128+i][0] = (layer2[i].r)/(layer2[i].c_count);
-            p->palette[128+i][1] = (layer2[i].g)/(layer2[i].c_count);
-            p->palette[128+i][2] = (layer2[i].b)/(layer2[i].c_count);
+            p->palette[128+i][0] = (layer2[i].r);
+            p->palette[128+i][1] = (layer2[i].g);
+            p->palette[128+i][2] = (layer2[i].b);
         }
     }
 
@@ -598,6 +598,7 @@ photo_t* read_photo(const char* fname) {
                     p->img[p->hdr.width * y + x] = i+64;
                 }
             }
+
 
             for(i = 128; i < 192; i++){
                 // 6 bit layer2 palette R/G/B value
