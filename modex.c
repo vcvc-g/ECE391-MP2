@@ -47,6 +47,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include "types.h"
+#include "photo.h"
+#include "photo_headers.h"
 #include "modex.h"
 #include "text.h"
 
@@ -979,6 +982,22 @@ static void fill_palette_mode_x() {
 }
 
 
+/*
+ * fill_palette_octree
+ *     DESCRIPTION: Fill VGA palette with necessary colors for the adventure
+ *                  game. Rest of 256 colors(192) are written.
+ *     INPUTS: none
+ *     OUTPUTS: none
+ *     RETURN VALUE: none
+ *     SIDE EFFECTS: changes the first 64 palette colors
+ */
+void fill_palette_octree(unsigned char * p) {
+
+    /* Start writing at color 64. */
+    OUTB(0x03C8, 0x40);
+    /* Write all 192 colors from array. */
+    REP_OUTSB(0x03C9, p, 192 * 3);
+}
 /*
  * fill_palette_text
  *     DESCRIPTION: Fill VGA palette with default VGA colors.

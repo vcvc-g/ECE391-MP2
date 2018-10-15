@@ -89,7 +89,7 @@ struct color_t {
 
 
 
-
+int l4_comp(const void *p, const void *q);
 
 
 
@@ -315,8 +315,13 @@ uint32_t photo_width(const photo_t* p) {
  *   SIDE EFFECTS: changes recorded cur_room for this file
  */
 void prep_room(const room_t* r) {
+    unsigned char *palette_RGB;
     /* Record the current room. */
     cur_room = r;
+    //call function from modex.c
+    photo_t *p = room_photo(r);
+    palette_RGB = p->palette;
+    fill_palette_octree(palette_RGB);
 }
 
 
@@ -415,14 +420,14 @@ photo_t* read_photo(const char* fname) {
     uint16_t y;        /* index over image rows    */
     uint16_t pixel;    /* one pixel from the file  */
 
-    color_t layer2[64];
-    color_t layer4[4096];
-    uint16_t        cr, cg, cb;
+    struct color_t layer2[64];
+    struct color_t layer4[4096];
+    uint16_t        cr, cg, cb, pixelR , pixelG ,pixelB, palR, palG, palB;
     int idx_2, idx_4, i_sort;
     int idx_i, i;      //loop index
 
     //layer4 initialization
-    struct color_t p_color = {.r = 0, .g = 0, .b = 0, c_count = 0, o_idx = 0};
+    struct color_t p_color = {.r = 0, .g = 0, .b = 0, .c_count = 0, .o_idx = 0};
     for(idx_i = 0; idx_i < 4096; idx_i++){
         layer4[idx_i] = p_color;
     }
@@ -501,15 +506,16 @@ photo_t* read_photo(const char* fname) {
 
             ///EACH Pixel IN CURENT IMAGE
             // Current color idx in layer 4
-            idx_4 = (((pixel >> 12) << 8) | (((pixel >> 7) & 0x0F) << 4) | ((pixel >> 1) & 0x0F));
+            idx_4 = (((pixel >> 12) << 8) | ((pixel >> 3) & 0x0F0) | ((pixel >> 1) & 0x0F));
 
             cr = ((pixel >> 10) & 0x3E);    // 6 bit R of current pixel
-            cg = ((pixel >> 5) & 0x3E);    // 6 bit G of current pixel
+            cg = ((pixel >> 5) & 0x3F);    // 6 bit G of current pixel
             cb = ((pixel << 1) & 0x3E);   // 6 bit B of current pixel
 
-            layer4[idx_4].r += cr;
-            layer4[idx_4].g += cg;
-            layer4[idx_4].b += cb;
+
+            layer4[idx_4].r = cr;
+            layer4[idx_4].g = cg;
+            layer4[idx_4].b = cb;
             layer4[idx_4].c_count += 1;
             layer4[idx_4].o_idx = idx_4;
 
@@ -517,6 +523,7 @@ photo_t* read_photo(const char* fname) {
     }
     //OUT IMAGE Pixel
 
+/*
     //move rgb sum to layer2
     for(i = 0; i < 4096; i++){
         idx_2 = i/64;
@@ -526,10 +533,23 @@ photo_t* read_photo(const char* fname) {
         layer2[idx_2].c_count += layer4[i].c_count;
 
     }
+*/
     //sort layer4 by color count
-    qsort((void*)layer4 ,4096,sizeof(layer4[0]),l4_comp);
+    qsort((void*)layer4 ,4096,sizeof(struct color_t),l4_comp);
+
+    //move rgb sum to layer2
+    for(i = 128; i < 4096; i++){
+        idx_2 = i/64;
+        layer2[idx_2].r += layer4[i].r *layer4[i].c_count;
+        layer2[idx_2].g += layer4[i].g *layer4[i].c_count;
+        layer2[idx_2].b += layer4[i].b *layer4[i].c_count;
+        layer2[idx_2].c_count += layer4[i].c_count;
+
+    }
+
 
     for(i = 0; i < 128; i++){
+/*
         //mins first 128 layer4 rgb from layer2
         i_sort = layer4[i].o_idx/64;
         layer2[i_sort].r -= layer4[i].r;
@@ -537,24 +557,69 @@ photo_t* read_photo(const char* fname) {
         layer2[i_sort].b -= layer4[i].b;
         layer2[i_sort].c_count -= layer4[i].c_count;
         //avg first 128 layer4 rgb and put in palette
+*/
         if(layer4[i].c_count > 0){
-            p.palette[i][0] = layer4[i].r/layer4[i].c_count;
-            p.palette[i][1] = layer4[i].g/layer4[i].c_count;
-            p.palette[i][2] = layer4[i].b/layer4[i].c_count;
+            p->palette[i][0] = layer4[i].r;
+            p->palette[i][1] = layer4[i].g;
+            p->palette[i][2] = layer4[i].b;
         }
     }
 
     for(i = 0; i < 64; i++){
         //avg first 128 layer4 rgb and put in palette
         if(layer2[i].c_count > 0){
-            p.palette[128+i][0] = layer2[i].r/layer2[i].c_count;
-            p.palette[128+i][1] = layer2[i].g/layer2[i].c_count;
-            p.palette[128+i][2] = layer2[i].b/layer2[i].c_count;
+            p->palette[128+i][0] = layer2[i].r/layer2[i].c_count;
+            p->palette[128+i][1] = layer2[i].g/layer2[i].c_count;
+            p->palette[128+i][2] = layer2[i].b/layer2[i].c_count;
         }
     }
 
+    fseek(in, sizeof(p->hdr), SEEK_SET);
+
+    for (y = p->hdr.height; y-- > 0; ) {
+        /* Loop over columns from left to right. */
+        for (x = 0; p->hdr.width > x; x++) {
+
+            /*
+             * Try to read one 16-bit pixel.  On failure, clean up and
+             * return NULL.
+             */
+            if (1 != fread(&pixel, sizeof (pixel), 1, in)) {
+                free(p->img);
+                free(p);
+                (void)fclose(in);
+                return NULL;
+            }
 
 
+            pixelR = (pixel>>11) & 0x01F; //5bit R
+            pixelG = (pixel>>5) & 0x03F;  //6bit G
+            pixelB = pixel & 0x01F;       //5bit B
+
+            for(i = 0; i < 128; i++){
+                // 6 bit layer4 palette R/G/B value
+                palR = p->palette[i][0];
+                palG = p->palette[i][1];
+                palB = p->palette[i][2];
+                //compare front 4 MSB
+                if((palR>>2==pixelR>>1)&&(palG>>2==pixelG>>2)&&(palB>>2==pixelB>>1)){
+                    p->img[p->hdr.width * y + x] = i+64;
+                }
+            }
+
+            for(i = 128; i < 192; i++){
+                // 6 bit layer2 palette R/G/B value
+                palR = p->palette[i][0];
+                palG = p->palette[i][1];
+                palB = p->palette[i][2];
+                //compare front 2 MSB
+                if((palR>>4==pixelR>>3)&&(palG>>4==pixelG>>4)&&(palB>>4==pixelB>>3)){
+                    p->img[p->hdr.width * y + x] = i+64;
+                }
+            }
+
+        }
+    }
 
     /* All done.  Return success. */
     (void)fclose(in);

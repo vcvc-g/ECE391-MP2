@@ -133,10 +133,14 @@ extern void graph_to_buffer(unsigned char* img, unsigned char buf[4][1440]);
 /* clear the video memory in mode X */
 extern void clear_screens();
 
+/* fill in palette with octree colors */
+extern void fill_palette_octree(unsigned char * p);
+
 /* draw a horizontal line at vertical pixel y within the logical view window */
 extern int draw_horiz_line(int y);
 
 /* draw a vertical line at horizontal pixel x within the logical view window */
 extern int draw_vert_line(int x);
+
 
 #endif /* MODEX_H */
